@@ -12,61 +12,33 @@ class Fisioterapeuta(models.Model):
         return self.nome
 
 
-class Paciente(models.Model):
+class Sessao(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     nome = models.CharField(max_length=150)
     fisioterapeuta = models.ForeignKey(
-        Fisioterapeuta, on_delete=models.PROTECT, related_name='pacientes'
+        Fisioterapeuta, on_delete=models.PROTECT, related_name='sessao'
     )
     ativo = models.BooleanField(default=True)
 
     def __str__(self):
         return self.nome
 
-
-class Exercicio(models.Model):
+class Tentativas(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     nome = models.CharField(max_length=150)
-    descricao = models.TextField()
-    video_url = models.URLField(blank=True, null=True)
-    imagem_url = models.URLField(blank=True, null=True)
-    series = models.PositiveIntegerField()
-    repeticoes = models.PositiveIntegerField()
-    criado_por = models.ForeignKey(Fisioterapeuta, on_delete=models.PROTECT)
-
-    def __str__(self):
-        return self.nome
-
-
-class Prescricao(models.Model):
-    paciente = models.ForeignKey(
-        Paciente, on_delete=models.CASCADE, related_name='prescricoes'
-    )
-    exercicio = models.ForeignKey(Exercicio, on_delete=models.PROTECT)
-    ordem = models.PositiveIntegerField()
-    avancado_de = models.ForeignKey(
-        'self', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='avancados'
+    sessao = models.ForeignKey(
+        Sessao, on_delete=models.PROTECT, related_name='tentativas'
     )
     ativo = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.paciente} — {self.exercicio}"
-
+        return self.nome
 
 class Feedback(models.Model):
-    prescricao = models.ForeignKey(
-        Prescricao, on_delete=models.CASCADE, related_name='feedbacks'
+    tentativa = models.ForeignKey(
+        Tentativas, on_delete=models.CASCADE, related_name='feedbacks', null=True, blank=True
     )
     data = models.DateField(auto_now_add=True)
     dor = models.PositiveIntegerField(null=True, blank=True)
     concluiu = models.BooleanField(default=False)
     pulou = models.BooleanField(default=False)
-
-
-class Observacao(models.Model):
-    paciente = models.ForeignKey(
-        Paciente, on_delete=models.CASCADE, related_name='observacoes'
-    )
-    fisioterapeuta = models.ForeignKey(Fisioterapeuta, on_delete=models.PROTECT)
-    texto = models.TextField()
-    data = models.DateTimeField(auto_now_add=True)
