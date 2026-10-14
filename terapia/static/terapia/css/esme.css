@@ -1,0 +1,110 @@
+/* ESME — visual do site. Cores e "extrusão" 3D saem do logo. */
+:root {
+    --noite: #1b1b6b;
+    --espaco: #3434a8;
+    --alien: #8fe884;
+    --tinta: #0d0d1a;
+    --gelo: #d6e6ff;
+    --branco: #ffffff;
+    --fonte-titulo: "Bahnschrift", "Arial Black", "Segoe UI", system-ui, sans-serif;
+    --fonte-texto: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--branco);
+    font: 1.05rem/1.5 var(--fonte-texto);
+    background:
+        radial-gradient(1.5px 1.5px at 12% 18%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 78% 12%, #fff, transparent 60%),
+        radial-gradient(1.5px 1.5px at 40% 70%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 90% 80%, #fff, transparent 60%),
+        radial-gradient(1px 1px at 25% 90%, #fff, transparent 60%),
+        linear-gradient(var(--noite), var(--espaco));
+    background-attachment: fixed;
+}
+
+/* Cabeçalho e marca */
+.cabecalho { padding: 1rem 1.5rem; }
+.marca {
+    font: 700 2rem/1 var(--fonte-titulo);
+    letter-spacing: 0.04em;
+    color: var(--alien);
+    text-decoration: none;
+    text-shadow: 3px 3px 0 var(--tinta);
+}
+
+main { width: min(100%, 640px); margin: 0 auto; padding: 1rem 1.25rem 4rem; }
+
+h1 { margin: 0 0 0.5rem; font: 700 2.4rem/1.1 var(--fonte-titulo); }
+.lead { margin: 0 0 2rem; color: var(--gelo); }
+
+/* Botões: faces verdes com sombra preta, como as letras do logo */
+.botao {
+    display: inline-block;
+    padding: 1rem 1.6rem;
+    font: 700 1.25rem/1 var(--fonte-titulo);
+    color: var(--tinta);
+    background: var(--alien);
+    border: 3px solid var(--tinta);
+    border-radius: 6px;
+    box-shadow: 6px 6px 0 var(--tinta);
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+.botao:hover { transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--tinta); }
+.botao:active { transform: translate(6px, 6px); box-shadow: 0 0 0 var(--tinta); }
+.botao:focus-visible { outline: 3px solid var(--branco); outline-offset: 4px; }
+
+.botao-claro { background: var(--gelo); }
+.botao-contorno { color: var(--branco); background: transparent; border-color: var(--branco); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.6); }
+.botao-grande { width: 100%; padding: 1.2rem 1.5rem; font-size: 1.4rem; }
+
+/* Home */
+.acoes { display: grid; gap: 1.4rem; max-width: 460px; }
+.acoes form { margin: 0; }
+
+/* Login */
+.banner-logo {
+    width: 100%;
+    aspect-ratio: 2.8 / 1;
+    margin: 1.5rem 0 2rem;
+    background: var(--espaco) url("../img/logo-esme.jpg") center / cover;
+    border: 3px solid var(--tinta);
+    box-shadow: 6px 6px 0 var(--tinta);
+}
+.painel {
+    padding: 1.5rem;
+    color: var(--tinta);
+    background: var(--gelo);
+    border: 3px solid var(--tinta);
+    box-shadow: 8px 8px 0 var(--tinta);
+}
+.painel h1 { font-size: 1.8rem; }
+.painel label { display: block; margin: 0 0 0.3rem; font-weight: 700; }
+.painel select, .painel input[type="password"] {
+    display: block;
+    width: 100%;
+    margin: 0 0 1.2rem;
+    padding: 0.8rem 0.9rem;
+    font: inherit;
+    color: var(--tinta);
+    background: var(--branco);
+    border: 3px solid var(--tinta);
+    border-radius: 6px;
+}
+.painel select:focus-visible, .painel input:focus-visible { outline: 3px solid var(--espaco); outline-offset: 2px; }
+.painel .botao { width: 100%; margin-top: 0.4rem; }
+
+.erro, .aviso { margin: 0 0 1.2rem; padding: 0.7rem 0.9rem; border: 3px solid var(--tinta); }
+.erro { color: #5c0b0b; background: #ffd9d6; border-color: #7a1010; }
+.aviso { background: var(--branco); }
+
+@media (prefers-reduced-motion: reduce) {
+    .botao { transition: none; }
+}
