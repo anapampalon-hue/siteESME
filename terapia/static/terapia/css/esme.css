@@ -28,13 +28,22 @@ body {
 }
 
 /* Cabeçalho e marca */
-.cabecalho { padding: 1rem 1.5rem; }
+/* Cabeçalho e marca */
+.cabecalho { 
+    position: relative;
+    padding: 1rem 1.5rem;
+    height: 80px; /* Garante um espaço fixo para o cabeçalho não pular */
+}
+
 .marca {
-    font: 700 2rem/1 var(--fonte-titulo);
-    letter-spacing: 0.04em;
-    color: var(--alien);
-    text-decoration: none;
-    text-shadow: 3px 3px 0 var(--tinta);
+    display: inline-block;
+    width: 140px;      /* Defina o tamanho desejado da logo */
+    height: 70px;     /* Defina a altura proporcional */
+    background: url("../img/lalaal.png") left center / contain no-repeat;
+    margin: 0;
+    position: absolute; /* Tira a logo do fluxo normal para que ela não empurre o resto */
+    top: 1rem;
+    left: 1.5rem;
 }
 
 main { width: min(100%, 640px); margin: 0 auto; padding: 1rem 1.25rem 4rem; }
