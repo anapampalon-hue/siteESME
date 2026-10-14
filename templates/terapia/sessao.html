@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Sessão · ESME{% endblock %}
+{% block content %}
+
+<div style="display: flex; flex-direction: column; justify-content: center; min-height: 60vh; align-items: center; text-align: center;">
+    <form method="post" action="" class="painel" style="max-width: 460px; margin: 0 auto; text-align: left;">
+    {% csrf_token %}
+    
+    <!-- Caixa de texto comum -->
+    <label for="Nome ">Nome do paciente:</label>
+    <input type="text" id="Nome" name="Nome" placeholder="Digite aqui..." style="display: block; width: 100%; margin: 0 0 1.2rem; padding: 0.8rem 4rem; font: inherit; color: var(--tinta); background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;">
+    <!-- Caixa de texto do tipo data -->
+    <label for="data_sessao">Data:</label>
+    <input type="date" id="data_sessao" name="data_sessao" style="display: block; width: 100%; margin: 0 0 1.2rem; padding: 0.8rem 0.9rem; font: inherit; color: var(--tinta); background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;">
+
+    <button type="submit" class="botao botao-grande" style="width: 100%;">Avançar</button>
+</f
+
+
+
+
+{% endblock %}

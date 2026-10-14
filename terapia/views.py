@@ -13,3 +13,6 @@ def home(request):
         'eh_gestor': eh_gestor(request.user),  # mostra o botão "Equipe"
     }
     return render(request, 'terapia/home.html', contexto)
+
+def nova_sessao(request):
+    return render(request, 'terapia/sessao.html')
