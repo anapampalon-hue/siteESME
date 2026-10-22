@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Aguardando a mesa · ESME{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/sessao.css' %}">
+<link rel="stylesheet" href="{% static 'terapia/css/nova_sessao.css' %}">
+
+<div class="nova-pagina" id="app" data-nova="{% url 'nova_sessao' %}" data-sessao="{% url 'sessao' %}">
+
+    <p id="faixa-erro" class="faixa-erro" role="alert" hidden></p>
+
+    {# paciente + sinal da mesa e do batedor (bolinha verde = conectada, vermelha = sem sinal) #}
+    <section class="info-sessao" aria-label="Paciente e equipamento">
+        <p class="info-item">Paciente: <strong id="esp-paciente"></strong></p>
+        <p class="info-item indicador" id="ind-mesa" data-estado="sem_sinal">
+            <span class="ponto" aria-hidden="true"></span>Mesa: <span class="ind-texto"></span>
+        </p>
+        <p class="info-item indicador" id="ind-batedor" data-estado="sem_sinal">
+            <span class="ponto" aria-hidden="true"></span>Batedor: <span class="ind-texto"></span>
+        </p>
+    </section>
+
+    {# a sessão só existe depois do aperto de 3 s no botão "nova sessão" da mesa #}
+    <section class="painel espera" aria-live="polite">
+        <div class="radar" aria-hidden="true"></div>
+        <p class="destaque" id="esp-instrucao"></p>
+        <p id="esp-ajuda"></p>
+        <div class="acoes-form">
+            <button type="button" id="b-cancelar-espera" class="botao botao-claro">Cancelar</button>
+        </div>
+    </section>
+</div>
+
+<script type="module" src="{% static 'terapia/js/espera_mesa.js' %}"></script>
+{% endblock %}

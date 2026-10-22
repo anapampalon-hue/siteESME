@@ -1,5 +1,5 @@
 """
-terapia/models.py — Banco de dados do ESME (v2: sem cadastro de paciente)
+terapia/models.py — Banco de dados do ESME (v3: nome do paciente criptografado)
 
 Hierarquia (cada seta é uma chave estrangeira):
 
@@ -19,6 +19,8 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+from .campos import CampoCriptografado
 
 # Regras fixas do jogo (se mudarem, muda só aqui)
 TENTATIVAS_POR_SESSAO = 5
@@ -112,7 +114,8 @@ class Sessao(models.Model):
     )  # quem conduziu a sessão
 
     # Digitados pela fisio na tela "Nova sessão" (não existe cadastro de paciente)
-    paciente_nome = models.CharField(max_length=150)
+    # criptografado no banco (campos.py); listas e admin mostram só as iniciais
+    paciente_nome = CampoCriptografado(max_length=150)
     data_sessao = models.DateField(default=timezone.localdate)
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.EM_ANDAMENTO)
@@ -180,14 +183,25 @@ class Tentativa(models.Model):
         INTERROMPIDA = 'interrompida', 'Interrompida (hardware caiu ou sessão encerrada)'
 
     sessao = models.ForeignKey(Sessao, on_delete=models.CASCADE, related_name='tentativas')
-    numero = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1), MaxValueValidator(TENTATIVAS_POR_SESSAO)]
-    )
+    # sem limite fixo por sessão (modelo do Sandro): a numeração só cresce; tentativa anulada mantém o número
+    numero = models.PositiveSmallIntegerField(validators=[MinValueValidator(1)])
     iniciada_em = models.DateTimeField(null=True, blank=True)
     finalizada_em = models.DateTimeField(null=True, blank=True)
     motivo_fim = models.CharField(max_length=20, choices=MotivoFim.choices, blank=True)
 
-    # Métricas do tabuleiro (bobinas) — calculadas ao finalizar a tentativa
+    # Desfecho (códigos; a tela escolhe o texto)
+    class Resultado(models.TextChoices):
+        GOL = 'gol', 'Gol'
+        PAROU = 'parou', 'Parou'
+        INTERROMPIDA = 'interrompida', 'Interrompida'
+
+    resultado = models.CharField(max_length=15, choices=Resultado.choices, blank=True)
+    motivo = models.CharField(max_length=20, blank=True)   # nova_tentativa | nova_sessao | mesa_reiniciou (só se interrompida)
+    anulada = models.BooleanField(default=False)            # reversível; fora dos totais e do PDF
+    fluidez_nivel = models.CharField(max_length=15, blank=True)   # alta | media | baixa | indisponivel
+    fluidez_motivo = models.CharField(max_length=30, blank=True)  # só se indisponivel
+
+    # Alcance: 0 = nenhuma bobina · 1..8 = bobina mais alta cruzada · 9 = gol
     bobinas_atingidas = models.PositiveSmallIntegerField(
         default=0, validators=[MaxValueValidator(TOTAL_BOBINAS)]
     )

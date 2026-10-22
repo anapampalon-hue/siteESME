@@ -9,7 +9,7 @@
         <p class="lead" style="margin: 0 0 2rem;">O que vamos fazer agora?</p>
 
         <div class="acoes" style="margin: 0 auto;">
-            <a class="botao botao-grande" href="#">Nova sessão</a>
+            <a class="botao botao-grande" href="{% url 'nova_sessao' %}">Nova sessão</a>
             <a class="botao botao-claro botao-grande" href="#">Histórico de sessões</a>
             {% if eh_gestor %}
                 <a class="botao botao-claro botao-grande" href="#">Equipe</a>
