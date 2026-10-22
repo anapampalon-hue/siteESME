@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Nova sessão · ESME{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/sessao.css' %}">
+<link rel="stylesheet" href="{% static 'terapia/css/nova_sessao.css' %}">
+
+{# depois de "Continuar" o fisioterapeuta vai para a página de espera da mesa (e dela para a sessão) #}
+<div class="nova-pagina" id="app" data-espera="{% url 'espera_mesa' %}" data-sessao="{% url 'sessao' %}">
+
+    {# ficam visíveis até o JavaScript carregar; se esta mensagem não sumir, o .js não foi encontrado #}
+    <p id="aviso-js" class="erro" role="alert">Os scripts da página não carregaram. Confira se os arquivos .js estão em terapia/static/terapia/js/ e aperte Ctrl+F5.</p>
+
+    {# some se a ligação com o programa estiver boa #}
+    <p id="faixa-erro" class="faixa-erro" role="alert" hidden></p>
+
+    {# sinal da mesa e do batedor: bolinha verde = conectada, vermelha = sem sinal #}
+    <section class="info-sessao" aria-label="Estado do equipamento">
+        <p class="info-item indicador" id="ind-mesa" data-estado="sem_sinal">
+            <span class="ponto" aria-hidden="true"></span>Mesa: <span class="ind-texto">Sem sinal</span>
+        </p>
+        <p class="info-item indicador" id="ind-batedor" data-estado="sem_sinal">
+            <span class="ponto" aria-hidden="true"></span>Batedor: <span class="ind-texto">Sem sinal</span>
+        </p>
+    </section>
+
+    {# nome e data: sempre visíveis, junto com o sinal #}
+    <form id="form-nova" class="painel" novalidate>
+        <h1>Nova sessão</h1>
+
+        <p id="erro-nova" class="erro" role="alert" hidden></p>
+
+        <label for="paciente">Nome do paciente</label>
+        <input id="paciente" name="paciente" type="text" list="nomes-usados" autocomplete="off" maxlength="150" autofocus>
+        <datalist id="nomes-usados"></datalist>
+
+        <label for="data">Data da sessão (dd/mm/aaaa)</label>
+        <input id="data" name="data" type="text" inputmode="numeric" placeholder="dd/mm/aaaa" maxlength="10" autocomplete="off">
+
+        <div class="acoes-form">
+            <a class="botao botao-claro" href="{% url 'home' %}">Cancelar</a>
+            <button type="submit" id="b-continuar" class="botao">Continuar</button>
+        </div>
+    </form>
+</div>
+
+<script type="module" src="{% static 'terapia/js/nova_sessao.js' %}"></script>
+{% endblock %}

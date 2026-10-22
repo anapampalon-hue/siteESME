@@ -1,0 +1,108 @@
+/* sessao.css — páginas "Nova sessão" e "Sessão". Usa as variáveis do esme.css. */
+
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* a página da sessão precisa de mais largura que o resto do site */
+main:has(.sessao-pagina) { width: min(100%, 1100px); }
+
+.botao-pequeno { padding: 0.55rem 0.9rem; font-size: 1rem; box-shadow: 4px 4px 0 var(--tinta); }
+.botao-pequeno:hover { box-shadow: 6px 6px 0 var(--tinta); }
+.botao:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--tinta); }
+
+/* ---------- Nova sessão ---------- */
+.painel input[type="text"] {
+    display: block; width: 100%; margin: 0 0 1.2rem; padding: 0.8rem 0.9rem;
+    font: inherit; color: var(--tinta); background: var(--branco);
+    border: 3px solid var(--tinta); border-radius: 6px;
+}
+.painel input[aria-invalid="true"] { border-color: #7a1010; background: #fff4f3; }
+.painel .acoes-form { display: flex; justify-content: space-between; gap: 1rem; }
+.painel .acoes-form .botao { width: auto; margin-top: 0; }
+
+/* ---------- cabeçalho da sessão ---------- */
+.cabecalho-sessao .cab-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.6rem; }
+.cabecalho-sessao .nav a {
+    color: var(--branco); font-weight: 700; text-decoration: none;
+    padding: 0.3rem 0.2rem; border-bottom: 3px solid var(--alien);
+}
+.indicadores { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; margin-left: auto; }
+.indicador { display: inline-flex; align-items: baseline; gap: 0.4rem; font-weight: 600; }
+.ponto { align-self: center; width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--alien); border: 2px solid var(--tinta); }
+.indicador[data-estado="sem_sinal"] .ponto { background: #ff6b5e; }
+.ind-aviso { font-weight: 400; color: var(--gelo); }
+.conta { display: flex; align-items: center; gap: 0.8rem; }
+.conta form { margin: 0; }
+.cab-sessao { margin: 0.7rem 0 0; display: flex; flex-wrap: wrap; gap: 0.3rem 2rem; color: var(--gelo); }
+.cab-sessao strong { color: var(--branco); }
+
+/* ---------- corpo ---------- */
+.sessao-pagina { display: grid; gap: 1.4rem; }
+.tela-sessao { display: grid; gap: 1.4rem; }
+.espera { max-width: 560px; }
+.espera .ajuda { color: #3a3a55; }
+.espera .botao { width: auto; }
+
+.topo-encerrada { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 2rem; }
+.topo-encerrada p { margin: 0; }
+.status-selo { font: 700 1.1rem var(--fonte-titulo); padding: 0.15rem 0.8rem; color: var(--tinta); background: var(--alien); border: 3px solid var(--tinta); }
+
+/* resumo: 4 números */
+.resumo { display: grid; grid-template-columns: repeat(3, 1fr) 1.7fr; gap: 1rem; }
+.resumo .item { padding: 0.8rem 1rem; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta); }
+.resumo .rotulo { display: block; font-weight: 700; font-size: 0.95rem; }
+.resumo .valor { display: block; font: 700 2.2rem/1.1 var(--fonte-titulo); }
+.resumo .valor.texto { font-size: 1.45rem; padding-top: 0.5rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; margin-top: 0.4rem; }
+.chip { padding: 0.15rem 0.6rem; font-weight: 600; background: var(--branco); border: 2px solid var(--tinta); }
+.chip b { font-family: var(--fonte-titulo); }
+@media (max-width: 900px) { .resumo { grid-template-columns: 1fr 1fr; } }
+
+/* lista de tentativas */
+.tabela-wrap { overflow-x: auto; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta); }
+.tabela-wrap table { width: 100%; border-collapse: collapse; }
+.tabela-wrap th, .tabela-wrap td { padding: 0.7rem 0.9rem; text-align: left; vertical-align: top; }
+.tabela-wrap thead th { color: var(--branco); background: var(--tinta); font-family: var(--fonte-titulo); }
+.tabela-wrap tbody tr + tr > * { border-top: 2px solid rgba(13, 13, 26, 0.2); }
+.tabela-wrap td small { display: block; font-size: 0.88rem; color: #3a3a55; }
+.col-num { width: 4rem; font: 700 1.25rem var(--fonte-titulo); }
+.col-estado { font-weight: 700; }
+.col-acoes { white-space: nowrap; }
+.col-acoes .botao { margin-right: 0.7rem; }
+tr.ativa > * { background: #e8ffe4; }
+tr.ativa > th { box-shadow: inset 8px 0 0 var(--alien); }
+tr.anulada > * { color: #5d5d75; background: #c6cfe0; }
+.vazio { margin: 0; padding: 2rem 1.2rem; font-weight: 600; }
+
+.rodape-sessao { display: flex; justify-content: flex-end; }
+.rodape-encerrada { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.2rem; }
+.pdf-caminho { flex-basis: 100%; margin: 0; color: var(--gelo); }
+
+/* ---------- janelas (Detalhe e confirmação) ---------- */
+dialog.detalhe {
+    width: min(92vw, 720px); padding: 1.2rem 1.4rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta);
+}
+dialog.detalhe::backdrop { background: rgba(13, 13, 26, 0.72); }
+dialog.detalhe header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+dialog.detalhe h2 { margin: 0; font: 700 1.5rem/1.2 var(--fonte-titulo); }
+dialog.detalhe footer { display: flex; justify-content: space-between; gap: 1rem; }
+.det-resumo { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1.2rem; margin: 1rem 0; }
+.det-resumo dt { font-weight: 700; }
+.det-resumo dd { margin: 0; }
+.det-resumo small { display: block; color: #3a3a55; }
+.det-curva { min-height: 120px; padding: 0.5rem; background: var(--branco); border: 3px solid var(--tinta); }
+.det-curva svg { display: block; width: 100%; height: auto; }
+.det-curva .linha { fill: none; stroke: var(--espaco); stroke-width: 3.5; stroke-linejoin: round; }
+.det-curva .eixo { stroke: var(--tinta); stroke-width: 2; }
+.det-curva text { font: 12px var(--fonte-texto); fill: var(--tinta); }
+.det-vazio { margin: 0; padding: 2.2rem 1rem; text-align: center; font-weight: 600; }
+.legenda { margin: 0.6rem 0 0; }
+.aviso-fixo { margin: 0.6rem 0 1rem; font-size: 0.92rem; color: #3a3a55; }
+.confirmar-texto { margin: 0 0 1.2rem; font-size: 1.15rem; font-weight: 600; }
+
+/* ---------- painel de demonstração e avisos ---------- */
+.demo { padding: 0.8rem 1rem; color: var(--gelo); border: 3px dashed var(--gelo); }
+.demo summary { cursor: pointer; font-weight: 700; }
+.demo-botoes { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 0.8rem; }
+.faixa-erro { margin: 0; padding: 0.8rem 1rem; font-weight: 700; color: #5c0b0b; background: #ffd9d6; border: 3px solid #7a1010; }
