@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Histórico · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/historico.css' %}">
+
+{# os endereços com "0" são modelos: o historico.js troca o 0 pelo número da sessão #}
+<div class="his" id="app"
+     data-url-sessao="{% url 'sessao' %}"
+     data-url-home="{% url 'home' %}"
+     data-url-relatorio="{% url 'relatorio' 0 %}"
+     data-url-csv="{% url 'exportar_csv' 0 %}">
+
+    <p id="aviso-js" class="his-faixa-erro" role="alert">
+        Os scripts desta página não carregaram. Confira se o historico.js está em terapia/static/terapia/js/ e aperte Ctrl+F5.
+    </p>
+
+    <header class="his-topo">
+        <h1>Histórico de sessões</h1>
+        <a class="botao botao-claro his-voltar" href="{% url 'home' %}">Voltar ao início</a>
+    </header>
+
+    <p id="faixa-erro" class="his-faixa-erro" role="alert" hidden></p>
+
+    <form class="his-filtros" id="filtros" role="search" novalidate>
+        <div class="his-campo">
+            <label for="f-busca">Buscar por nome ou código</label>
+            <input id="f-busca" type="search" autocomplete="off" maxlength="150" placeholder="Nome ou P-XXXXXX">
+        </div>
+        <div class="his-campo his-campo-data">
+            <label for="f-data">Data (dd/mm/aaaa)</label>
+            <input id="f-data" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="dd/mm/aaaa">
+        </div>
+        <label class="his-nomes" for="f-nomes">
+            <input id="f-nomes" type="checkbox">
+            Mostrar nomes
+        </label>
+        <button type="button" id="f-limpar" class="botao botao-claro his-btn">Limpar</button>
+    </form>
+    <p id="f-erro" class="his-dica his-dica-erro" role="alert" hidden></p>
+    <p class="his-dica" id="f-dica"></p>
+
+    <div class="his-tabela">
+        <p id="vazio" class="his-vazio" hidden></p>
+        <table id="tabela" hidden>
+            <caption class="sr-only">Sessões salvas, da mais recente para a mais antiga</caption>
+            <thead><tr id="cabecalho"></tr></thead>
+            <tbody id="lista"></tbody>
+        </table>
+    </div>
+</div>
+
+<script type="module" src="{% static 'terapia/js/historico.js' %}?v=1"></script>
+{% endblock %}
