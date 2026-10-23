@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sessão · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}">
+
+<div class="ses" id="app" data-url-inicio="{% url 'home' %}" data-url-espera="{% url 'espera_mesa' %}">
+
+    {# a logo é a do cabeçalho do site (a mesma da Início, e clicar nela volta para o Início) #}
+    <p id="aviso-js" class="ses-faixa-erro" role="alert">
+        Os scripts desta página não carregaram. Aperte Ctrl+F5; se continuar, aperte F12, abra a aba Console e veja o erro em vermelho.
+    </p>
+
+    {# ---------- topo: paciente · data · início · sinais da mesa e do batedor ---------- #}
+    <header class="ses-topo">
+        <section class="ses-info" aria-label="Informações da sessão">
+            <p>Paciente: <strong id="cab-paciente"></strong></p>
+            <p>Data: <strong id="cab-data"></strong></p>
+            <p id="cab-hora-wrap">Início: <strong id="cab-inicio"></strong></p>
+            <p id="cab-fim-wrap" hidden>Fim: <strong id="cab-fim"></strong></p>
+        </section>
+
+        <section class="ses-sinais" aria-label="Sinal da mesa e do batedor">
+            <p class="ses-sinal" id="ind-mesa" data-estado="sem_sinal">
+                <span class="ses-ponto" aria-hidden="true"></span>Mesa: <span class="ind-texto">Sem sinal</span>
+            </p>
+            <p class="ses-sinal" id="ind-batedor" data-estado="sem_sinal">
+                <span class="ses-ponto" aria-hidden="true"></span>Batedor: <span class="ind-texto">Sem sinal</span>
+            </p>
+        </section>
+    </header>
+
+    <p id="faixa-erro" class="ses-faixa-erro" role="alert" hidden></p>
+
+    {# ---------- totais da sessão ---------- #}
+    <section class="ses-cartoes" aria-label="Resumo da sessão">
+        <div class="ses-cartao"><h2>Tentativas válidas</h2><p class="ses-numerao" id="res-validas">0</p></div>
+        <div class="ses-cartao"><h2>Gols</h2><p class="ses-numerao" id="res-gols">0</p></div>
+        <div class="ses-cartao"><h2>Melhor alcance</h2><p class="ses-medio" id="res-melhor">nenhum</p></div>
+        {# uma frase só, que muda conforme o jogo anda; o aviso de sem sinal fica numa linha reservada #}
+        <div class="ses-cartao ses-cartao-largo" id="cartao-guia">
+            <h2>O que fazer agora</h2>
+            <p class="ses-frase" id="guia-frase" role="status"></p>
+            <p class="ses-guia-aviso" id="guia-aviso" role="status"></p>
+        </div>
+    </section>
+
+    {# ---------- tentativas ---------- #}
+    <div class="ses-tabela">
+        <p id="vazio" class="ses-vazio" hidden></p>
+        <table id="tabela" hidden>
+            <caption class="sr-only">Tentativas da sessão, da mais recente para a mais antiga</caption>
+            <thead>
+                <tr>
+                    <th scope="col">N°</th>
+                    <th scope="col">Resultado</th>
+                    <th scope="col">Alcance</th>
+                    <th scope="col">Fluidez</th>
+                    <th scope="col">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="lista"></tbody>
+        </table>
+    </div>
+
+    <div class="ses-rodape">
+        {# só com a sessão encerrada: uma caixinha para cada tipo de fluidez #}
+        <section class="ses-fluidez" id="fluidez-final" aria-label="Fluidez das tentativas" hidden>
+            <h2>Fluidez</h2>
+            <ul id="res-fluidez"></ul>
+        </section>
+        <button type="button" id="b-encerrar" class="botao botao-grande ses-encerrar">Encerrar sessão</button>
+    </div>
+</div>
+
+{# ---------- janela Detalhe de uma tentativa ---------- #}
+<dialog id="detalhe" class="ses-detalhe" aria-labelledby="det-titulo">
+    <header>
+        <h2 id="det-titulo"></h2>
+        <button type="button" id="det-fechar" class="botao botao-claro ses-btn">Fechar</button>
+    </header>
+    <dl class="ses-det-resumo">
+        <dt>Alcance:</dt><dd id="det-alcance"></dd>
+        <dt>Fluidez:</dt><dd id="det-fluidez"></dd>
+    </dl>
+    <div id="det-curva" class="ses-det-curva" aria-live="polite"></div>
+    <p id="det-legenda" class="ses-legenda"></p>
+    <p class="ses-aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
+    <footer>
+        <button type="button" id="det-anterior" class="botao botao-claro ses-btn">&lt; Anterior</button>
+        <button type="button" id="det-anular" class="botao botao-claro ses-btn">Anular</button>
+        <button type="button" id="det-proxima" class="botao botao-claro ses-btn">Próxima &gt;</button>
+    </footer>
+</dialog>
+
+<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=3"></script>
+{% endblock %}
