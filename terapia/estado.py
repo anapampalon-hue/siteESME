@@ -38,6 +38,7 @@ GOL_CM = 76
 PRAZO_CALCULO_S = 3.0   # escopo: espera as amostras do batedor por até ~3 s
 COMENTARIO_MAX = 2000   # letras do comentário da terapeuta
 COD_GOL = 9         # Tentativa.bobinas_atingidas == 9 significa "chegou ao gol"
+NOME_ANONIMO = 'Anônimo'   # sessão sem o aceite do TCLE: sem nome, sem data e sem código; apagada ao fechar
 
 
 def _sem_acento(txt):
@@ -118,6 +119,7 @@ class Programa:
         self.leitura_id = None                    # sessão encerrada, ainda na tela (modo leitura)
         self.encerrando = False                   # encerrar pedido com o disco ainda rolando
         self._ultimo = None
+        self._limpou_anonimas = False             # sobras de sessões anônimas (programa fechado no meio) saem na 1ª leitura
         # --- fluidez em segundo plano ---
         self._amostras = collections.deque(maxlen=40000)   # (instante, ax, ay, az) do batedor, ~6 min a 100 Hz
         self._ini = {}                            # pk da tentativa aberta -> instante em que começou
@@ -278,30 +280,51 @@ class Programa:
             self._mexeu()
 
     # ================= comandos (vindos da tela) =================
-    def preparar_sessao(self, user, paciente, data_iso):
+    def preparar_sessao(self, user, paciente, data_iso, consentimento=True):
+        """`consentimento` = o "check" do TCLE na Nova sessão. Sem ele a sessão é ANÔNIMA: o nome e a data digitados
+        são ignorados (nome "Anônimo", sem data, sem código) e tudo é apagado quando a terapeuta fecha a sessão."""
         with self._lock:
             fisio = getattr(user, 'fisioterapeuta', None)
             if fisio is None or not fisio.ativo:
                 return {'ok': False, 'erro': 'sem_perfil'}
             if self.espera or self.sessao_id:
                 return {'ok': False, 'erro': 'sessao_aberta'}
-            paciente = ' '.join((paciente or '').split())
-            if not paciente:
-                return {'ok': False, 'erro': 'paciente_vazio'}
-            if len(paciente) > 150:
-                return {'ok': False, 'erro': 'paciente_longo'}
-            d = _data_iso_valida(data_iso)
-            if d is None:
-                return {'ok': False, 'erro': 'data_invalida'}
+            if consentimento:
+                paciente = ' '.join((paciente or '').split())
+                if not paciente:
+                    return {'ok': False, 'erro': 'paciente_vazio'}
+                if len(paciente) > 150:
+                    return {'ok': False, 'erro': 'paciente_longo'}
+                d = _data_iso_valida(data_iso)
+                if d is None:
+                    return {'ok': False, 'erro': 'data_invalida'}
+            else:
+                paciente, d = NOME_ANONIMO, timezone.localdate()     # a data real nunca é mostrada nem exportada
             conhecido = self.mesa['contador_sessao'] is not None and self._equip(self.mesa_visto) == 'ok'
             self.leitura_id = None
+            self._descartar_anonimas()                       # a sessão anônima anterior (se sobrou) some aqui
             self.espera = {
-                'fisio_id': fisio.pk, 'paciente': paciente, 'data': d,
+                'fisio_id': fisio.pk, 'paciente': paciente, 'data': d, 'anonima': not consentimento,
                 'base_boot': self.mesa['boot_id'] if conhecido else None,
                 'base_contador': self.mesa['contador_sessao'] if conhecido else None,
             }
             self._mexeu()
             return {'ok': True}
+
+    def _descartar_anonimas(self):
+        """Apaga de vez as sessões anônimas (com tentativas, curvas e comentário). Nunca a que está rodando agora."""
+        sobras = Sessao.objects.filter(anonima=True)
+        if self.sessao_id:
+            sobras = sobras.exclude(pk=self.sessao_id)
+        sobras.delete()
+        if self.leitura_id and not Sessao.objects.filter(pk=self.leitura_id).exists():
+            self.leitura_id = None
+
+    def descartar_anonimas(self):
+        """Chamado ao sair da conta (logout): nada de sessão anônima fica para trás."""
+        with self._lock:
+            self._descartar_anonimas()
+            self._mexeu()
 
     def cancelar_espera(self, user):
         with self._lock:
@@ -399,9 +422,10 @@ class Programa:
         with self._lock:
             if self.espera or self.sessao_id:
                 return {'ok': False, 'erro': 'sessao_aberta'}
-            s = Sessao.objects.visiveis_para(user).filter(pk=pk).first()
+            s = Sessao.objects.visiveis_para(user).filter(pk=pk, anonima=False).first()     # a anônima não tem histórico
             if s is None:
                 return {'ok': False, 'erro': 'nao_encontrado'}
+            self._descartar_anonimas()
             self.leitura_id = s.pk
             self._mexeu()
             return {'ok': True}
@@ -430,7 +454,7 @@ class Programa:
             pre = normalizar_nome(busca)
             alvo = _data_iso_valida(data_iso) if data_iso else None
             linhas = []
-            for s in Sessao.objects.visiveis_para(user).select_related('fisioterapeuta').order_by('-iniciada_em', '-criada_em'):
+            for s in Sessao.objects.visiveis_para(user).filter(anonima=False).select_related('fisioterapeuta').order_by('-iniciada_em', '-criada_em'):
                 if s.pk == self.sessao_id:
                     continue                        # a sessão em andamento não é histórico ainda
                 tents = list(s.tentativas.all())
@@ -464,6 +488,7 @@ class Programa:
     def fechar_leitura(self, user):
         with self._lock:
             self.leitura_id = None
+            self._descartar_anonimas()          # sessão anônima: ao fechar, tudo é apagado
             self._mexeu()
             return {'ok': True}
 
@@ -474,7 +499,7 @@ class Programa:
             return {'ok': True, 'nomes': []}
         # o nome é criptografado no banco, então o filtro é feito aqui, depois de ler (poucos registros por fisio)
         vistos = {}
-        for nome in Sessao.objects.ativas().filter(fisioterapeuta=fisio).values_list('paciente_nome', flat=True):
+        for nome in Sessao.objects.ativas().filter(fisioterapeuta=fisio, anonima=False).values_list('paciente_nome', flat=True):
             if _sem_acento(nome).startswith(pre):
                 vistos.setdefault(_sem_acento(nome), nome)
         return {'ok': True, 'nomes': sorted(vistos.values(), key=_sem_acento)[:6]}
@@ -483,10 +508,10 @@ class Programa:
     def _sessao_dict(self, s, status):
         tents = list(s.tentativas.order_by('-numero'))
         return {
-            'id': s.pk, 'codigo': s.garantir_codigo(), 'comentario': s.comentario or '',
-            'paciente': s.paciente_nome, 'data': s.data_sessao.isoformat(),
-            'inicio': s.iniciada_em.isoformat() if s.iniciada_em else None,
-            'fim': s.finalizada_em.isoformat() if s.finalizada_em else None,
+            'id': s.pk, 'codigo': s.garantir_codigo(), 'comentario': s.comentario or '', 'anonima': s.anonima,
+            'paciente': s.paciente_nome, 'data': None if s.anonima else s.data_sessao.isoformat(),
+            'inicio': s.iniciada_em.isoformat() if s.iniciada_em and not s.anonima else None,
+            'fim': s.finalizada_em.isoformat() if s.finalizada_em and not s.anonima else None,
             'status': status, 'duracao_min': _duracao_min(s), 'tentativas': [_tentativa_dict(t, t.pk in self._pend) for t in tents],
             'resumo': _resumo(tents, self._pend),
             'pdf': None, 'encerrando': self.encerrando and status == 'em_andamento',
@@ -495,12 +520,17 @@ class Programa:
     def snapshot(self, user):
         with self._lock:
             self._bump()      # atualiza a versão se alguma placa ficou sem sinal
+            if not self._limpou_anonimas:
+                self._limpou_anonimas = True
+                self._descartar_anonimas()
             fisio = getattr(user, 'fisioterapeuta', None)
             nome = fisio.nome if fisio else user.get_username()
             tela, sessao = 'sem_sessao', None
             if self.espera and self._eh_dono(user, self.espera['fisio_id']):
                 tela = 'aguardando_mesa'
-                sessao = {'paciente': self.espera['paciente'], 'data': self.espera['data'].isoformat()}
+                anonima = bool(self.espera.get('anonima'))
+                sessao = {'paciente': self.espera['paciente'], 'anonima': anonima,
+                          'data': None if anonima else self.espera['data'].isoformat()}
             else:
                 for sid, tela_s, status in ((self.sessao_id, 'sessao_em_andamento', 'em_andamento'),
                                             (self.leitura_id, 'sessao_encerrada', 'concluida')):
@@ -516,6 +546,17 @@ class Programa:
                 'equipamentos': {'mesa': self._equip(self.mesa_visto), 'batedor': self._equip(self.batedor_visto)},
                 'sessao': sessao,
             }
+
+    # ================= usados pela página Configurações =================
+    def equipamentos(self):
+        """{'mesa': 'ok'|'sem_sinal', 'batedor': ...} — para o "Concluir" da configuração conferir as duas placas."""
+        with self._lock:
+            return {'mesa': self._equip(self.mesa_visto), 'batedor': self._equip(self.batedor_visto)}
+
+    def sessao_ocupando_placas(self):
+        """True se há sessão em andamento ou esperando a mesa: nessa hora não se grava nada nas placas."""
+        with self._lock:
+            return bool(self.espera or self.sessao_id)
 
     # ================= internos =================
     def _equip(self, visto):
@@ -543,9 +584,11 @@ class Programa:
     def _abrir_sessao(self):
         e = self.espera
         fisio = Fisioterapeuta.objects.get(pk=e['fisio_id'])
+        anonima = bool(e.get('anonima'))
         s = Sessao.objects.create(
             fisioterapeuta=fisio, paciente_nome=e['paciente'], data_sessao=e['data'],
-            codigo_paciente=codigo_paciente(fisio.pk, e['paciente']),
+            codigo_paciente='' if anonima else codigo_paciente(fisio.pk, e['paciente']),
+            anonima=anonima, consentimento_em=None if anonima else timezone.now(),
             status=Sessao.Status.EM_ANDAMENTO, circuito_ok=True,
             batedor_conectado=self._equip(self.batedor_visto) == 'ok',
             iniciada_em=timezone.now(),   # a hora do aperto de 3 s é a hora de início (escopo 7.6)

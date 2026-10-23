@@ -16,7 +16,14 @@ main:has(.ses) { width: min(100%, 1180px); padding-top: 1.2rem; }
 .ses-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 2rem; padding-top: 0.4rem; }
 .ses-info { display: flex; flex-wrap: wrap; gap: 0.3rem 2rem; }
 .ses-info p { margin: 0; font-size: 1.15rem; }
-.ses-sinais { display: flex; flex: none; flex-wrap: nowrap; justify-content: flex-end; gap: 0.3rem 1.8rem; margin-left: auto; }   /* sempre à direita, mesmo se quebrar de linha */
+.ses-info { max-width: 100%; }
+/* sinais da mesa e do batedor: sempre no canto superior direito, na linha do logo (não importa o tamanho do nome do paciente) */
+.ses-sinais {
+    position: absolute; top: 2.4rem; right: 2rem; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.3rem 1.4rem;
+    max-width: min(62vw, 680px); padding: 0.45rem 1rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); border-radius: 12px; box-shadow: 4px 4px 0 var(--tinta);
+}
+@media (max-width: 900px) { .ses-sinais { position: static; margin-left: auto; max-width: 100%; } }
 .ses-sinal { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; margin: 0; font-weight: 600; }
 .ses-ponto { width: 1rem; height: 1rem; border-radius: 50%; background: #e5372b; border: 2px solid var(--tinta); }   /* vermelha = sem sinal */
 .ses-sinal[data-estado="ok"] .ses-ponto { background: #35c24a; }                                                    /* verde = conectada */

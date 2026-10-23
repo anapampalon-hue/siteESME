@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESME · Registro da sessão · {{ r.codigo }}</title>
+    <title>ESME · Registro da sessão{% if r.anonima %} anônima{% else %} · {{ r.codigo }}{% endif %}</title>
     <style>
         :root { --tinta: #0d0d1a; --espaco: #3434a8; --alien: #8fe884; --gelo: #d6e6ff; }
         * { box-sizing: border-box; }
@@ -56,10 +56,12 @@
 <body data-imprimir="{% if imprimir %}1{% endif %}">
     <nav class="barra" aria-label="Opções do relatório">
         <button type="button" onclick="window.print()">Salvar como PDF / Imprimir</button>
+        {% if not r.anonima %}
         <label>
             <input type="checkbox" id="c-nome" {% if com_nome %}checked{% endif %}>
             Incluir o nome do paciente
         </label>
+        {% endif %}
         <a class="claro" href="{% url 'exportar_csv' pk %}">Baixar CSV</a>
         <span>Na janela de impressão, escolha o destino <strong>Salvar como PDF</strong>.</span>
     </nav>
@@ -68,14 +70,22 @@
         <h1><span>ESME</span> Registro da sessão</h1>
 
         <section class="dados">
+            {% if r.anonima %}
+            <p><strong>Paciente:</strong> Anônimo</p>
+            <p><strong>Data da sessão:</strong> 00/00/0000</p>
+            {% if r.duracao_min is not None %}<p><strong>Duração:</strong> {{ r.duracao_min }} min</p>{% endif %}
+            {% else %}
             <p><strong>Paciente:</strong> {% if r.nome %}{{ r.nome }} ({{ r.codigo }}){% else %}{{ r.codigo }}{% endif %}</p>
             <p><strong>Data da sessão:</strong> {{ r.data|date:"d/m/Y" }}</p>
             <p><strong>Início:</strong> {{ r.inicio|date:"H:i"|default:"—" }}
                &nbsp; <strong>Fim:</strong> {{ r.fim|date:"H:i"|default:"—" }}
                {% if r.duracao_min is not None %}&nbsp; <strong>Duração:</strong> {{ r.duracao_min }} min{% endif %}</p>
+            {% endif %}
             <p><strong>Fisioterapeuta:</strong> {{ r.fisio }} &nbsp; <strong>Situação:</strong> {{ r.status }}</p>
         </section>
-        {% if not r.nome %}
+        {% if r.anonima %}
+        <p class="pseudo">Sessão anônima: sem nome, data nem código. Estes dados não ficam salvos no histórico do programa.</p>
+        {% elif not r.nome %}
         <p class="pseudo">O paciente é identificado por um código (pseudônimo), sem o nome. Só quem tem o programa e a chave da clínica liga o código ao nome.</p>
         {% endif %}
 
@@ -128,9 +138,12 @@
     </main>
 
     <script>
-        document.getElementById('c-nome').addEventListener('change', function (e) {
-            location.search = e.target.checked ? '?nome=1' : '';
-        });
+        var cNome = document.getElementById('c-nome');
+        if (cNome) {
+            cNome.addEventListener('change', function (e) {
+                location.search = e.target.checked ? '?nome=1' : '';
+            });
+        }
         if (document.body.dataset.imprimir === '1') {
             window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });
         }

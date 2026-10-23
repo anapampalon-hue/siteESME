@@ -3,7 +3,7 @@
 {% block title %}Nova sessão · ESME{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'terapia/css/sessao.css' %}">
-<link rel="stylesheet" href="{% static 'terapia/css/nova_sessao.css' %}">
+<link rel="stylesheet" href="{% static 'terapia/css/nova_sessao.css' %}?v=4">
 
 {# depois de "Continuar" o fisioterapeuta vai para a página de espera da mesa (e dela para a sessão) #}
 <div class="nova-pagina" id="app" data-espera="{% url 'espera_mesa' %}" data-sessao="{% url 'sessao' %}">
@@ -31,7 +31,7 @@
         <p id="erro-nova" class="erro" role="alert" hidden></p>
 
         <label for="paciente">Nome do paciente</label>
-        <input id="paciente" name="paciente" type="text" list="nomes-usados" autocomplete="off" maxlength="150" autofocus>
+        <input id="paciente" name="paciente" type="text" list="nomes-usados" autocomplete="off" maxlength="150">
         <datalist id="nomes-usados"></datalist>
 
         <label for="data">Data da sessão (dd/mm/aaaa)</label>
@@ -42,6 +42,21 @@
             <button type="submit" id="b-continuar" class="botao">Continuar</button>
         </div>
     </form>
+
+    {% comment %}
+        TCLE virtual: marcado = o paciente aceita que os dados fiquem no histórico (pseudonimizados).
+        Sem o "check" o nome vira "Anônimo", a data fica 00/00/0000 e tudo é apagado ao fechar a sessão.
+    {% endcomment %}
+    <div class="tcle" id="tcle-bloco">
+        <input type="checkbox" id="tcle" class="tcle-input" autocomplete="off">
+        <label for="tcle" class="tcle-rotulo">
+            <span class="tcle-caixa" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="24" height="24" focusable="false"><path d="M4.5 12.8 9.6 18 19.5 6.5"/></svg>
+            </span>
+            <span class="tcle-texto">O paciente declara que os dados ficam salvos no histórico e pseudoanonimizados.</span>
+        </label>
+        {% if tcle_pdf %}<a class="tcle-link" href="{{ tcle_pdf }}" target="_blank" rel="noopener">Ler o TCLE (PDF)</a>{% endif %}
+    </div>
 </div>
 
 <script type="module" src="{% static 'terapia/js/nova_sessao.js' %}"></script>

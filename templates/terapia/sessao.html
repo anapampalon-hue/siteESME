@@ -18,7 +18,7 @@
     <header class="ses-topo">
         <section class="ses-info" aria-label="Informações da sessão">
             <p>Paciente: <strong id="cab-paciente"></strong></p>
-            <p>Código: <strong id="cab-codigo" class="ses-codigo"></strong></p>
+            <p id="cab-codigo-wrap">Código: <strong id="cab-codigo" class="ses-codigo"></strong></p>
             <p>Data: <strong id="cab-data"></strong></p>
             <p id="cab-hora-wrap">Início: <strong id="cab-inicio"></strong></p>
             <p id="cab-fim-wrap" hidden>Fim: <strong id="cab-fim"></strong></p>
@@ -69,6 +69,8 @@
 
     {# sessão que ficou aberta porque o programa foi fechado #}
     <p id="aviso-interrompida" class="ses-aviso-interrompida" role="status" hidden></p>
+    {# sessão anônima (sem o "check" do TCLE): não fica salva #}
+    <p id="aviso-anonima" class="ses-aviso-interrompida" role="status" hidden></p>
 
     {# comentário da terapeuta: opcional, salva sozinho enquanto ela escreve #}
     <section class="ses-comentario" aria-labelledby="com-titulo">
@@ -123,5 +125,5 @@
     </footer>
 </dialog>
 
-<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=4"></script>
+<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=5"></script>
 {% endblock %}

@@ -22,9 +22,23 @@ class TerapiaConfig(AppConfig):
     name = 'terapia'
 
     def ready(self):
+        # ao sair da conta, nenhuma sessão anônima fica para trás
+        from django.contrib.auth.signals import user_logged_out
+
+        def _ao_sair(sender, **kwargs):
+            from .estado import programa
+            programa.descartar_anonimas()
+        user_logged_out.connect(_ao_sair, dispatch_uid='esme_descartar_anonimas')
+
         if _deve_iniciar_receptor():
             from . import receptor
             receptor.iniciar(
                 getattr(settings, 'ESME_PORTA_MESA', 4212),
                 getattr(settings, 'ESME_PORTA_BATEDOR', 4210),
             )
+            if getattr(settings, 'ESME_ANUNCIO', True):
+                from . import anuncio          # o notebook avisa seu IP na rede (as placas o acham sozinhas)
+                anuncio.iniciar(
+                    getattr(settings, 'ESME_PORTA_MESA', 4212),
+                    getattr(settings, 'ESME_PORTA_BATEDOR', 4210),
+                )

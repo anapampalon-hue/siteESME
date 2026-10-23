@@ -14,6 +14,22 @@ const campoData = $('data');
 const erro = $('erro-nova');
 const lista = $('nomes-usados');
 const faixa = $('faixa-erro');
+const caixaTcle = $('tcle');
+
+/* ---------- TCLE virtual ----------
+   Marcado: nome e data valem (como sempre). Desmarcado: o nome vira "Anônimo", a data 00/00/0000 e os campos travam;
+   o programa guarda a sessão só até ela ser fechada. O que a terapeuta já digitou volta se ela marcar de novo. */
+let digitado = { nome: '', data: '' };
+function aplicarTcle(foco) {
+  const aceito = caixaTcle.checked;
+  if (!aceito && !campoNome.disabled) digitado = { nome: campoNome.value, data: campoData.value };
+  if (aceito) { campoNome.value = digitado.nome; campoData.value = digitado.data; }
+  else { campoNome.value = T.novaSessao.anonimo; campoData.value = T.novaSessao.dataAnonima; }
+  campoNome.disabled = campoData.disabled = !aceito;
+  limparErro();
+  if (aceito && foco) campoNome.focus();
+}
+caixaTcle.addEventListener('change', () => aplicarTcle(true));
 
 /* ---------- máscara e validação da data (a caixa começa vazia; o programa não preenche) ---------- */
 campoData.addEventListener('input', () => {
@@ -50,6 +66,7 @@ let pedidoSug = 0;
 let esperaSug = null;
 campoNome.addEventListener('input', () => {
   clearTimeout(esperaSug);
+  if (campoNome.disabled) return;
   esperaSug = setTimeout(async () => {
     const meu = ++pedidoSug;
     const r = await enviarComando('sugestoes_nome', { prefixo: campoNome.value });
@@ -62,18 +79,25 @@ campoNome.addEventListener('input', () => {
 form.addEventListener('submit', async (ev) => {
   ev.preventDefault();
   limparErro();
-  const nome = campoNome.value.trim().replace(/\s+/g, ' ');
-  if (!nome) return mostrarErro(T.novaSessao.erroNome, campoNome);
-  const dataISO = dataValida(campoData.value.trim());
-  if (!dataISO) return mostrarErro(T.novaSessao.erroData, campoData);
+  const aceito = caixaTcle.checked;
+  let nome = '', dataISO = '';
+  if (aceito) {
+    nome = campoNome.value.trim().replace(/\s+/g, ' ');
+    if (!nome) return mostrarErro(T.novaSessao.erroNome, campoNome);
+    dataISO = dataValida(campoData.value.trim());
+    if (!dataISO) return mostrarErro(T.novaSessao.erroData, campoData);
+  }
 
   const botao = $('b-continuar');
   botao.disabled = true;
-  const r = await enviarComando('preparar_sessao', { paciente: nome, data: dataISO });
+  // sem o "check" do TCLE o programa ignora nome e data: a sessão é anônima
+  const r = await enviarComando('preparar_sessao', { paciente: nome, data: dataISO, consentimento: aceito });
   botao.disabled = false;
   if (!r.ok) return mostrarErro(frase(r.erro));
   location.href = app.dataset.espera;                       // segue para a página de espera da mesa
 });
+
+aplicarTcle(false);      // começa desmarcado (o navegador pode ter lembrado a caixa de uma visita anterior)
 
 /* ---------- segue o estado do programa ---------- */
 function indicador(id, quem, valor) {

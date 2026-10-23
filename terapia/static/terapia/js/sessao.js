@@ -225,6 +225,10 @@ function renderRodape(e) {
   $('aviso-interrompida').textContent = interrompida ? T.sessao.interrompida : '';
   $('b-concluir').hidden = !interrompida;
 
+  // sessão anônima: lembra que ela não fica salva (e avisa antes de "Fechar" apagar tudo)
+  $('aviso-anonima').hidden = !s.anonima;
+  $('aviso-anonima').textContent = s.anonima ? (encerrada ? T.sessao.anonimaFechar : T.sessao.anonima) : '';
+
   // exportar: depois que a sessão terminou (ou foi aberta do histórico)
   $('exportar').hidden = !encerrada;
   if (encerrada) {
@@ -262,11 +266,14 @@ function desenhar(e) {
   if (e.tela === 'aguardando_mesa') { location.href = app.dataset.urlEspera; return; }
 
   const s = e.sessao;
+  const anonima = !!s.anonima;                       // sem o TCLE: "Anônimo", sem código, sem data real e sem horário
   $('cab-paciente').textContent = s.paciente;
   $('cab-codigo').textContent = s.codigo;
-  $('cab-data').textContent = dataBR(s.data);
+  $('cab-codigo-wrap').hidden = anonima;
+  $('cab-data').textContent = anonima ? T.novaSessao.dataAnonima : dataBR(s.data);
+  $('cab-hora-wrap').hidden = anonima;
   $('cab-inicio').textContent = horaBR(s.inicio);
-  $('cab-fim-wrap').hidden = !s.fim;
+  $('cab-fim-wrap').hidden = anonima || !s.fim;
   $('cab-fim').textContent = horaBR(s.fim);
   indicador($('ind-mesa'), e.equipamentos.mesa, T.mesa);
   indicador($('ind-batedor'), e.equipamentos.batedor, T.batedor);

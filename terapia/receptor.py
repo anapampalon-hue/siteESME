@@ -2,7 +2,7 @@
 receptor.py — escuta os pacotes UDP das placas e entrega ao estado.py.
 
 Mesa (ESP32) -> porta 4212 | Batedor (ESP8266) -> porta 4210 (escopo do Sandro, seção 3).
-Um thread por porta. A via é de mão única: este arquivo só RECEBE, nunca envia nada às placas.
+Um thread por porta. Este arquivo só RECEBE. O aviso do IP do notebook para as placas é feito por anuncio.py.
 Se a porta estiver ocupada (outro receptor aberto), o programa segue funcionando e o Diagnóstico mostra "ocupada".
 """
 import logging

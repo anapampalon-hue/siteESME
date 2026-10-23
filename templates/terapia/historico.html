@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static esme_extras %}
 {% block title %}Histórico · ESME{% endblock %}
 
 {% block content %}
 <link rel="stylesheet" href="{% static 'terapia/css/historico.css' %}">
+{% navbar "" %}
 
 {# os endereços com "0" são modelos: o historico.js troca o 0 pelo número da sessão #}
 <div class="his" id="app"

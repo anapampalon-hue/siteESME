@@ -1,6 +1,8 @@
 """
 exportar.py — monta o que sai do programa: o RELATÓRIO da sessão (página para "Salvar como PDF") e o CSV.
 
+SESSÃO ANÔNIMA (sem o "check" do TCLE): sem código, sem data, sem horário e sem nome; só os dados das tentativas.
+
 PSEUDONIMIZAÇÃO: por padrão nada aqui leva o nome do paciente, só o código (campos.codigo_paciente).
   * Relatório: o nome só entra se a terapeuta marcar "Incluir o nome do paciente" (?nome=1).
   * CSV: nunca leva nome nem comentário (o comentário é texto livre e pode citar dados do paciente);
@@ -79,11 +81,15 @@ def dados_relatorio(sessao, com_nome=False):
             'fluidez': TEXTO_FLUIDEZ[nivel], 'fluidez_motivo': TEXTO_FLUIDEZ_MOTIVO.get(motivo, ''),
             'curva_svg': _curva_svg(t.curva['pontos'], escala) if t.curva else '',
         })
+    anonima = sessao.anonima
     return {
+        'anonima': anonima,
         'codigo': sessao.garantir_codigo(),
-        'nome': sessao.paciente_nome if com_nome else None,
+        'nome': sessao.paciente_nome if com_nome and not anonima else None,
         'fisio': sessao.fisioterapeuta.nome,
-        'data': sessao.data_sessao, 'inicio': sessao.iniciada_em, 'fim': sessao.finalizada_em,
+        # sessão anônima: sem data e sem horário (a tela mostra 00/00/0000)
+        'data': None if anonima else sessao.data_sessao,
+        'inicio': None if anonima else sessao.iniciada_em, 'fim': None if anonima else sessao.finalizada_em,
         'duracao_min': _duracao_min(sessao),
         'status': 'Interrompida' if sessao.status == 'em_andamento' else 'Concluída',
         'validas': resumo['tentativas_validas'], 'gols': resumo['gols'],
@@ -100,12 +106,15 @@ def gerar_csv(sessao):
     w = csv.writer(saida, delimiter=';', lineterminator='\r\n')
     w.writerow(['codigo_paciente', 'data_sessao', 'inicio', 'fim', 'tentativa', 'resultado', 'motivo', 'alcance_cm',
                 'bobina', 'gol', 'fluidez', 'fluidez_motivo', 'anulada', 'velocidade_pico_m_s'])
-    ini = sessao.iniciada_em.isoformat(timespec='minutes') if sessao.iniciada_em else ''
-    fim = sessao.finalizada_em.isoformat(timespec='minutes') if sessao.finalizada_em else ''
+    anonima = sessao.anonima                          # sem código, sem data e sem horário
+    ini = sessao.iniciada_em.isoformat(timespec='minutes') if sessao.iniciada_em and not anonima else ''
+    fim = sessao.finalizada_em.isoformat(timespec='minutes') if sessao.finalizada_em and not anonima else ''
+    codigo = 'anonimo' if anonima else sessao.garantir_codigo()
+    data = '' if anonima else sessao.data_sessao.isoformat()
     for t in sessao.tentativas.filter(finalizada_em__isnull=False).order_by('numero'):
         a = _alcance(t)
         nivel, motivo = _fluidez(t)
-        w.writerow([sessao.garantir_codigo(), sessao.data_sessao.isoformat(), ini, fim, t.numero, t.resultado, t.motivo,
+        w.writerow([codigo, data, ini, fim, t.numero, t.resultado, t.motivo,
                     a['cm'] if a['cm'] is not None else '', a['bobina'] or '', 'sim' if a['gol'] else 'não',
                     nivel, motivo, 'sim' if t.anulada else 'não',
                     str(t.curva['v_max']).replace('.', ',') if t.curva else ''])

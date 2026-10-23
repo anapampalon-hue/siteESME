@@ -124,6 +124,11 @@ class Sessao(models.Model):
     comentario = CampoCriptografado(blank=True, default='')
     comentario_em = models.DateTimeField(null=True, blank=True)
 
+    # TCLE virtual (Nova sessão): marcado = o paciente declarou que os dados ficam salvos no histórico, pseudonimizados.
+    # Não marcado = sessão ANÔNIMA: sem nome, sem data e sem código, não entra no histórico e é apagada ao fechar.
+    anonima = models.BooleanField(default=False)
+    consentimento_em = models.DateTimeField(null=True, blank=True)
+
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.EM_ANDAMENTO)
 
     # "Foto" do hardware no momento em que a sessão iniciou
@@ -151,6 +156,8 @@ class Sessao(models.Model):
 
     def garantir_codigo(self):
         """Sessões antigas (de antes do pseudônimo) ganham o código na primeira vez que são lidas."""
+        if self.anonima:
+            return ''                       # sessão anônima não tem código
         if not self.codigo_paciente and self.paciente_nome:
             from .campos import codigo_paciente
             self.codigo_paciente = codigo_paciente(self.fisioterapeuta_id, self.paciente_nome)
