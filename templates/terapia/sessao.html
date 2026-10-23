@@ -2,155 +2,97 @@
 {% load static %}
 {% block title %}Sessão · ESME{% endblock %}
 
-{% block cabecalho %}
-<header class="cabecalho cabecalho-sessao">
-    <div class="cab-linha">
-        {# troque o texto ESME pela <img> da sua logo (a mesma do base.html) #}
-        <a class="marca" href="{% url 'home' %}">ESME</a>
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}">
 
-        <nav id="nav-completa" class="nav" hidden>
-            <a href="{% url 'home' %}">Início</a>
-        </nav>
+<div class="ses" id="app" data-url-inicio="{% url 'home' %}" data-url-espera="{% url 'espera_mesa' %}">
 
-        <div class="indicadores">
-            <span id="ind-mesa" class="indicador">
-                <span class="ponto" aria-hidden="true"></span><span>Mesa:</span>
-                <span class="ind-texto"></span><span class="ind-aviso"></span>
-            </span>
-            <span id="ind-batedor" class="indicador">
-                <span class="ponto" aria-hidden="true"></span><span>Batedor:</span>
-                <span class="ind-texto"></span><span class="ind-aviso"></span>
-            </span>
+    {# a logo é a do cabeçalho do site (a mesma da Início, e clicar nela volta para o Início) #}
+    <p id="aviso-js" class="ses-faixa-erro" role="alert">
+        Os scripts desta página não carregaram. Aperte Ctrl+F5; se continuar, aperte F12, abra a aba Console e veja o erro em vermelho.
+    </p>
+
+    {# ---------- topo: paciente · data · início · sinais da mesa e do batedor ---------- #}
+    <header class="ses-topo">
+        <section class="ses-info" aria-label="Informações da sessão">
+            <p>Paciente: <strong id="cab-paciente"></strong></p>
+            <p>Data: <strong id="cab-data"></strong></p>
+            <p id="cab-hora-wrap">Início: <strong id="cab-inicio"></strong></p>
+            <p id="cab-fim-wrap" hidden>Fim: <strong id="cab-fim"></strong></p>
+        </section>
+
+        <section class="ses-sinais" aria-label="Sinal da mesa e do batedor">
+            <p class="ses-sinal" id="ind-mesa" data-estado="sem_sinal">
+                <span class="ses-ponto" aria-hidden="true"></span>Mesa: <span class="ind-texto">Sem sinal</span>
+            </p>
+            <p class="ses-sinal" id="ind-batedor" data-estado="sem_sinal">
+                <span class="ses-ponto" aria-hidden="true"></span>Batedor: <span class="ind-texto">Sem sinal</span>
+            </p>
+        </section>
+    </header>
+
+    <p id="faixa-erro" class="ses-faixa-erro" role="alert" hidden></p>
+
+    {# ---------- totais da sessão ---------- #}
+    <section class="ses-cartoes" aria-label="Resumo da sessão">
+        <div class="ses-cartao"><h2>Tentativas válidas</h2><p class="ses-numerao" id="res-validas">0</p></div>
+        <div class="ses-cartao"><h2>Gols</h2><p class="ses-numerao" id="res-gols">0</p></div>
+        <div class="ses-cartao"><h2>Melhor alcance</h2><p class="ses-medio" id="res-melhor">nenhum</p></div>
+        {# uma frase só, que muda conforme o jogo anda; o aviso de sem sinal fica numa linha reservada #}
+        <div class="ses-cartao ses-cartao-largo" id="cartao-guia">
+            <h2>O que fazer agora</h2>
+            <p class="ses-frase" id="guia-frase" role="status"></p>
+            <p class="ses-guia-aviso" id="guia-aviso" role="status"></p>
         </div>
+    </section>
 
-        <div id="conta-completa" class="conta" hidden>
-            <span>{{ nome }}</span>
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit" class="botao botao-contorno botao-pequeno">Sair da conta</button>
-            </form>
-        </div>
+    {# ---------- tentativas ---------- #}
+    <div class="ses-tabela">
+        <p id="vazio" class="ses-vazio" hidden></p>
+        <table id="tabela" hidden>
+            <caption class="sr-only">Tentativas da sessão, da mais recente para a mais antiga</caption>
+            <thead>
+                <tr>
+                    <th scope="col">N°</th>
+                    <th scope="col">Resultado</th>
+                    <th scope="col">Alcance</th>
+                    <th scope="col">Fluidez</th>
+                    <th scope="col">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="lista"></tbody>
+        </table>
     </div>
 
-    <p id="cab-sessao" class="cab-sessao" hidden>
-        Paciente: <strong id="cab-paciente"></strong>
-        <span id="cab-inicio-wrap" hidden>Início: <span id="cab-inicio"></span></span>
-    </p>
-</header>
-{% endblock %}
-
-{% block content %}
-<link rel="stylesheet" href="{% static 'terapia/css/sessao.css' %}">
-
-<div class="sessao-pagina" id="app"
-     data-url-inicio="{% url 'home' %}"
-     data-conta="{{ nome }}">
-
-    <p id="faixa-conexao" class="faixa-erro" role="status" hidden>Sem conexão com o programa. Tentando reconectar…</p>
-
-    {# ---------- 1) espera pelo aperto de 3 s na mesa ---------- #}
-    <section id="tela-espera" class="painel espera" hidden>
-        <h1>Aguardando a mesa</h1>
-        <p>Aperte e segure o botão "nova sessão" da mesa até o placar aparecer.</p>
-        <p class="ajuda">Se esta tela não avançar, confira se a Mesa está "Conectada" no topo e segure o botão de novo.</p>
-        <button type="button" id="btn-cancelar-espera" class="botao botao-claro">Cancelar</button>
-    </section>
-
-    {# ---------- 2) sessão em andamento / encerrada ---------- #}
-    <section id="tela-sessao" class="tela-sessao" hidden>
-
-        <div id="topo-encerrada" class="topo-encerrada" hidden>
-            <p>Paciente: <strong id="te-paciente"></strong></p>
-            <p class="status-selo" id="te-status"></p>
-            <p>Data: <span id="te-data"></span></p>
-            <p>Início: <span id="te-inicio"></span></p>
-            <p>Fim: <span id="te-fim"></span></p>
-            <p>Duração: <span id="te-duracao"></span></p>
-        </div>
-
-        <div class="resumo">
-            <div class="item"><span class="rotulo">Tentativas válidas</span><span class="valor" id="r-validas"></span></div>
-            <div class="item"><span class="rotulo">Gols</span><span class="valor" id="r-gols"></span></div>
-            <div class="item"><span class="rotulo">Melhor alcance</span><span class="valor texto" id="r-melhor"></span></div>
-            <div class="item"><span class="rotulo">Fluidez</span><div class="chips" id="r-fluidez"></div></div>
-        </div>
-
-        <div class="tabela-wrap">
-            <p id="vazio" class="vazio" hidden></p>
-            <table id="tabela" hidden>
-                <caption class="sr-only">Tentativas da sessão, da mais recente para a mais antiga</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Nº</th>
-                        <th scope="col">Resultado</th>
-                        <th scope="col">Alcance</th>
-                        <th scope="col">Fluidez</th>
-                        <th scope="col">Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="lista"></tbody>
-            </table>
-        </div>
-
-        <div class="rodape-sessao">
-            <button type="button" id="btn-encerrar" class="botao">Encerrar sessão</button>
-        </div>
-
-        <div id="rodape-encerrada" class="rodape-encerrada" hidden>
-            <button type="button" id="btn-pdf" class="botao">Gerar PDF</button>
-            <button type="button" id="btn-pasta" class="botao botao-claro" disabled>Abrir pasta</button>
-            <a class="botao botao-contorno" href="{% url 'home' %}">Voltar ao Início</a>
-            <p id="pdf-caminho" class="pdf-caminho"></p>
-        </div>
-    </section>
-
-    {# ---------- painel de demonstração: some quando o programa existir ---------- #}
-    <details id="demo" class="demo" hidden>
-        <summary>Painel de demonstração (faz o papel da mesa e do batedor)</summary>
-        <p>Nada aqui é salvo. Para ver telas prontas, abra <code>?cenario=completa</code> ou <code>?cenario=encerrada</code> no endereço.</p>
-        <div class="demo-botoes">
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="apertarNovaSessao">Apertar 3 s (nova sessão)</button>
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="armarTentativa">Nova tentativa</button>
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="avancarBobina">Disco passa +1 bobina</button>
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="parou">Disco para</button>
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="gol">Disco chega ao gol</button>
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="alternarBatedor">Batedor: sinal liga/desliga</button>
-            <button type="button" class="botao botao-claro botao-pequeno" data-acao="alternarMesa">Mesa: sinal liga/desliga</button>
-        </div>
-    </details>
+    <div class="ses-rodape">
+        {# só com a sessão encerrada: uma caixinha para cada tipo de fluidez #}
+        <section class="ses-fluidez" id="fluidez-final" aria-label="Fluidez das tentativas" hidden>
+            <h2>Fluidez</h2>
+            <ul id="res-fluidez"></ul>
+        </section>
+        <button type="button" id="b-encerrar" class="botao botao-grande ses-encerrar">Encerrar sessão</button>
+    </div>
 </div>
 
 {# ---------- janela Detalhe de uma tentativa ---------- #}
-<dialog id="detalhe" class="detalhe" aria-labelledby="det-titulo">
+<dialog id="detalhe" class="ses-detalhe" aria-labelledby="det-titulo">
     <header>
         <h2 id="det-titulo"></h2>
-        <button type="button" id="det-fechar" class="botao botao-claro botao-pequeno">Fechar</button>
+        <button type="button" id="det-fechar" class="botao botao-claro ses-btn">Fechar</button>
     </header>
-    <dl class="det-resumo">
-        <dt>Resultado</dt><dd id="det-resultado"></dd>
-        <dt>Alcance</dt><dd id="det-alcance"></dd>
-        <dt>Fluidez</dt><dd id="det-fluidez"></dd>
+    <dl class="ses-det-resumo">
+        <dt>Alcance:</dt><dd id="det-alcance"></dd>
+        <dt>Fluidez:</dt><dd id="det-fluidez"></dd>
     </dl>
-    <div id="det-curva" class="det-curva"></div>
-    <p id="det-legenda" class="legenda"></p>
-    <p class="aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
+    <div id="det-curva" class="ses-det-curva" aria-live="polite"></div>
+    <p id="det-legenda" class="ses-legenda"></p>
+    <p class="ses-aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
     <footer>
-        <button type="button" id="det-anterior" class="botao botao-claro botao-pequeno">&lt; Anterior</button>
-        <button type="button" id="det-anular" class="botao botao-claro botao-pequeno">Anular</button>
-        <button type="button" id="det-proxima" class="botao botao-claro botao-pequeno">Próxima &gt;</button>
+        <button type="button" id="det-anterior" class="botao botao-claro ses-btn">&lt; Anterior</button>
+        <button type="button" id="det-anular" class="botao botao-claro ses-btn">Anular</button>
+        <button type="button" id="det-proxima" class="botao botao-claro ses-btn">Próxima &gt;</button>
     </footer>
 </dialog>
 
-{# ---------- confirmação de encerrar ---------- #}
-<dialog id="confirmar" class="detalhe" aria-labelledby="confirmar-texto">
-    <form method="dialog">
-        <p id="confirmar-texto" class="confirmar-texto"></p>
-        <footer>
-            <button type="submit" value="nao" class="botao botao-claro botao-pequeno">Voltar</button>
-            <button type="submit" value="sim" class="botao botao-pequeno">Encerrar sessão</button>
-        </footer>
-    </form>
-</dialog>
-
-<script type="module" src="{% static 'terapia/js/sessao.js' %}"></script>
+<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=3"></script>
 {% endblock %}

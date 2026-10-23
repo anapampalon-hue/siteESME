@@ -10,6 +10,7 @@ export const T = {
     batedor: 'a fluidez não será registrada',
   },
   semConexao: 'Sem conexão com o programa. Tentando reconectar…',
+  semEstado: 'A tela não conseguiu ler o estado do programa.',
 
   fluidez: { alta: 'alta', media: 'média', baixa: 'baixa', indisponivel: 'indisponível' },
   motivoFluidez: {
@@ -32,12 +33,34 @@ export const T = {
     calculando: 'Calculando fluidez…',
     emAndamento: (alcance) => `Em andamento, alcance até agora: ${alcance}`,
   },
+  sessao: {
+    encerrando: 'Encerrando…',
+    encerrar: 'Encerrar sessão',
+    fechar: 'Fechar',
+    encerrada: 'Sessão encerrada. Você ainda pode anular ou desfazer tentativas.',
+    aguardaFim: 'Esperando o disco parar para encerrar…',
+  },
+  resumo: { calculando: 'calculando' },
+
+  // cartão "O que fazer agora" da Sessão (passo a passo; o passo da hora fica destacado)
+  guia: {
+    pronto: 'Posicione o disco e aperte "nova tentativa" na mesa.',
+    aguardandoDisco: 'Peça ao paciente que bata no disco.',
+    discoRolando: 'Espere a jogada acabar: o disco precisa parar ou chegar ao gol.',
+    encerrada: 'Sessão encerrada. Se quiser, anule tentativas ou clique em Fechar.',
+    avisoAmbos: 'Mesa e batedor sem sinal: nada será registrado.',
+    avisoMesa: 'Mesa sem sinal: nenhuma tentativa será registrada.',
+    avisoBatedor: 'Batedor sem sinal: a fluidez não será registrada.',
+  },
+
   semTentativas: 'Nenhuma tentativa ainda. Aperte nova tentativa na mesa e peça ao paciente que bata no disco.',
 
-  acoes: { detalhes: 'Detalhes', anular: 'Anular', restaurar: 'Restaurar' },
+  acoes: { detalhes: 'Detalhes', anular: 'Anular', restaurar: 'Desfazer' },   // 'restaurar' é o nome do comando; na tela é "Desfazer"
 
   detalhe: {
-    calculando: 'Calculando…',
+    calculando: 'Calculando o gráfico…',
+    carregando: 'Carregando o gráfico…',
+    semGrafico: 'Não há gráfico para esta tentativa.',
     legenda: 'Um pico só: movimento fluido. Vários picos: movimento entrecortado.',
     semCurva: {
       sem_dados_batedor: 'Sem dados do batedor nesta tentativa.',
@@ -64,6 +87,7 @@ export const T = {
     sem_perfil: 'Esta conta não é de fisioterapeuta, então não pode abrir sessões.',
     sem_permissao: 'Você não tem permissão para isso. Entre de novo na sua conta.',
     sem_conexao: 'Sem conexão com o programa.',
+    banco_desatualizado: 'O banco de dados está desatualizado. Pare o site (Ctrl+C) e rode: python manage.py makemigrations e depois python manage.py migrate.',
   },
   erroGenerico: (codigo) => `Algo deu errado (código ${codigo}).`,
 };

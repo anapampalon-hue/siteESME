@@ -200,6 +200,7 @@ class Tentativa(models.Model):
     anulada = models.BooleanField(default=False)            # reversível; fora dos totais e do PDF
     fluidez_nivel = models.CharField(max_length=15, blank=True)   # alta | media | baixa | indisponivel
     fluidez_motivo = models.CharField(max_length=30, blank=True)  # só se indisponivel
+    curva = models.JSONField(null=True, blank=True)               # {"pontos": [[t_s, v_m_s], ...], "v_max": ...} p/ o Detalhe
 
     # Alcance: 0 = nenhuma bobina · 1..8 = bobina mais alta cruzada · 9 = gol
     bobinas_atingidas = models.PositiveSmallIntegerField(

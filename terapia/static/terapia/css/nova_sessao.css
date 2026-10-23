@@ -20,3 +20,19 @@
 }
 @keyframes girar { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .radar { animation: none; } }
+
+/* ---------- bloco do sinal da mesa e do batedor (não depende do sessao.css) ---------- */
+.nova-pagina .info-sessao {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 2.4rem;
+    padding: 0.9rem 1.2rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+.nova-pagina .info-item { margin: 0; font-size: 1.15rem; }
+.nova-pagina .indicador { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; }
+.nova-pagina .ponto { flex: none; width: 1rem; height: 1rem; border-radius: 50%; background: #35c24a; border: 2px solid var(--tinta); }   /* verde = conectada */
+.nova-pagina .indicador[data-estado="sem_sinal"] .ponto { background: #e5372b; }                                                      /* vermelha = sem sinal */
+.nova-pagina [hidden] { display: none !important; }
+
+/* os dois quadros (sinais e formulário/espera) sempre com a MESMA largura */
+.nova-pagina { justify-items: stretch; }
+.nova-pagina > .info-sessao, .nova-pagina > .painel { width: 100%; max-width: none; margin-inline: 0; }

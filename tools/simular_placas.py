@@ -14,6 +14,7 @@ Pare com Ctrl+C.
 Formato dos pacotes: o de terapia/protocolo.py (mesa: provisório; batedor: Anexo A.4 do escopo).
 """
 import argparse
+import random
 import socket
 import struct
 import time
@@ -35,8 +36,12 @@ EVT = struct.Struct('<IBBI')          # ev_id, tipo, valor, t_us
 INICIO, BOBINA, GOL, FIM = 1, 2, 3, 4
 MOT_GOL, MOT_PAROU, MOT_NOVA_TENT = 1, 2, 3
 
-# roteiro das tentativas: (bobinas cruzadas, como termina)
-ROTEIRO = [(4, 'parou'), (8, 'gol'), (2, 'parou'), (5, 'parou'), (1, 'interrompida'), (6, 'parou'), (3, 'parou')]
+# roteiro das tentativas: (bobinas cruzadas, como termina, nº de "tacadas" do batedor)
+#   1 tacada = movimento fluido (fluidez alta) · 2 = média · 3 ou 4 = entrecortado (baixa)
+ROTEIRO = [(4, 'parou', 1), (8, 'gol', 1), (2, 'parou', 3)]
+TACADA = {1: (0.50, 0.30), 2: (0.25, 0.15), 3: (0.20, 0.10), 4: (0.20, 0.075)}   # (duração s, distância m)
+movimentos = []                       # (início, duração, distância) de cada tacada do batedor
+impactos = []                         # instante em que o batedor bate no disco (o sensor satura)
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 t0 = time.monotonic()
@@ -56,11 +61,25 @@ def evento(agora, tipo, valor=0):
     eventos.append((agora, ev_id, tipo, valor, int(agora * 1e6) & 0xFFFFFFFF))
 
 
+def jerk_minimo(x, t0, T, D):
+    """Aceleração (m/s²) de um movimento de jerk mínimo que percorre D metros em T segundos."""
+    if x < t0 or x > t0 + T:
+        return 0.0
+    tau = (x - t0) / T
+    return 30 * D / T ** 2 * (2 * tau - 6 * tau ** 2 + 4 * tau ** 3)
+
+
 def planejar(inicio):
-    """Monta no relógio o roteiro: cada tentativa começa, cruza as bobinas (0,8 s cada) e termina."""
+    """Monta no relógio o roteiro: cada tentativa começa, o batedor dá as tacadas e bate no disco,
+    o disco cruza as bobinas (0,8 s cada) e a tentativa termina."""
     t = inicio
-    for n, fim in ROTEIRO:
-        agenda.append((t, 'inicio', 0)); t += 1.0
+    for n, fim, tacadas in ROTEIRO:
+        agenda.append((t, 'inicio', 0))
+        T, D = TACADA[tacadas]
+        for k in range(tacadas):                       # as tacadas terminam no impacto, 1,6 s depois do início
+            movimentos.append((t + 1.6 - 0.03 - (tacadas - k) * (T + 0.03), T, D))
+        impactos.append(t + 1.6 - 0.03)
+        t += 1.6
         for b in range(1, n + 1):
             agenda.append((t, 'bobina', b)); t += 0.8
         if fim == 'gol':
@@ -109,9 +128,15 @@ try:
         if not a.sem_batedor and agora >= prox_bat:    # batedor: 25 pacotes por segundo
             prox_bat += 0.04; pkt_bat += 1
             amostras = b''
-            for _ in range(4):
+            for k in range(4):
                 seq += 1
-                amostras += struct.pack('<IIhhhhhh', seq, t_us, 0, 0, 2048, 0, 0, 0)
+                x = agora - (3 - k) * 0.01                 # 100 amostras por segundo
+                ax = sum(jerk_minimo(x, *m) for m in movimentos) / 9.80665 * 2048
+                ax = int(ax + 30 + random.gauss(0, 25))
+                if any(i <= x < i + 0.02 for i in impactos):
+                    ax = 32767                             # impacto: o sensor satura (±16 g)
+                amostras += struct.pack('<IIhhhhhh', seq, int(x * 1e6) & 0xFFFFFFFF, ax,
+                                        int(random.gauss(0, 25)), int(2048 + random.gauss(0, 25)), 0, 0, 0)
             sock.sendto(struct.pack('<HBB', pkt_bat, 4, 4) + amostras, (a.host, a.porta_batedor))
         if int(agora) != ultimo_aviso:
             ultimo_aviso = int(agora)

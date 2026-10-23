@@ -1,6 +1,7 @@
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.db.utils import OperationalError, ProgrammingError
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -50,7 +51,14 @@ def _nao_logado():
 def api_estado(request):
     if not request.user.is_authenticated:
         return _nao_logado()
-    resposta = JsonResponse(programa.snapshot(request.user))
+    try:
+        corpo = programa.snapshot(request.user)
+    except (OperationalError, ProgrammingError) as erro:
+        # quase sempre: models.py mudou e falta rodar "python manage.py migrate"
+        print('[ESME] ERRO no banco de dados:', erro)
+        print('[ESME] >>> Pare o site (Ctrl+C) e rode:  python manage.py makemigrations   e depois   python manage.py migrate')
+        return JsonResponse({'ok': False, 'erro': 'banco_desatualizado'}, status=500)
+    resposta = JsonResponse(corpo)
     resposta['Cache-Control'] = 'no-store'
     return resposta
 
@@ -75,12 +83,15 @@ def api_comando(request):
         r = programa.cancelar_espera(u)
     elif nome == 'encerrar_sessao':
         r = programa.encerrar_sessao(u)
-    elif nome in ('anular', 'restaurar'):
+    elif nome in ('anular', 'restaurar', 'obter_curva'):
         try:
             numero = int(args.get('numero'))
         except (TypeError, ValueError):
             return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
-        r = programa.anular(u, numero) if nome == 'anular' else programa.restaurar(u, numero)
+        if nome == 'obter_curva':
+            r = programa.obter_curva(u, numero)
+        else:
+            r = programa.anular(u, numero) if nome == 'anular' else programa.restaurar(u, numero)
     elif nome == 'fechar_leitura':
         r = programa.fechar_leitura(u)
     elif nome == 'sugestoes_nome':

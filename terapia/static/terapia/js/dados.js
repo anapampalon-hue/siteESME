@@ -29,6 +29,7 @@ let estado = null;          // último estado válido
 let servidor = null;
 let rodando = false;
 let semConexao = false;
+export let ultimoErro = null;   // texto do último erro ao ler /api/estado/ (a tela mostra se nunca chegou estado)
 
 const copia = (x) => JSON.parse(JSON.stringify(x));
 
@@ -48,7 +49,12 @@ async function perguntar() {
   try {
     const r = await fetch(URL_ESTADO, { cache: 'no-store', credentials: 'same-origin' });
     if (r.status === 401) { location.reload(); return; }          // login expirou: volta para o login
-    if (!r.ok) throw new Error(String(r.status));
+    if (!r.ok) {
+      const corpo = await r.json().catch(() => ({}));
+      const e = new Error(`HTTP ${r.status}`);
+      e.codigo = corpo.erro;
+      throw e;
+    }
     const novo = await r.json();
     // ignora estados mais velhos; se o servidor reiniciou ("servidor" mudou), aceita o novo
     if (!estado || novo.servidor !== servidor || novo.versao >= estado.versao) {
@@ -62,6 +68,7 @@ async function perguntar() {
       emitir();
     }
   } catch (erro) {
+    ultimoErro = erro.codigo || String(erro.message || erro);
     console.error('ESME: não consegui ler /api/estado/ —', erro);   // F12 > Console mostra o motivo
     if (!semConexao) { semConexao = true; emitir(); }
   }
@@ -86,7 +93,7 @@ export function assinar(fn) {
   return () => ouvintes.delete(fn);
 }
 
-/** Comandos: 'preparar_sessao', 'cancelar_espera', 'sugestoes_nome', 'encerrar_sessao' (os outros entram com a Sessão).
+/** Comandos: 'preparar_sessao', 'cancelar_espera', 'sugestoes_nome', 'encerrar_sessao', 'anular', 'restaurar', 'obter_curva', 'fechar_leitura'.
     Devolve { ok: true, ... } ou { ok: false, erro: 'codigo' }. */
 export async function enviarComando(nome, args = {}) {
   try {
@@ -97,14 +104,15 @@ export async function enviarComando(nome, args = {}) {
       body: JSON.stringify({ nome, args }),
     });
     const dados = await r.json().catch(() => ({ ok: false, erro: 'pedido_invalido' }));
-    if (dados.ok && nome !== 'sugestoes_nome') perguntar();       // atualiza a tela sem esperar o próximo ciclo
+    if (dados.ok && nome !== 'sugestoes_nome' && nome !== 'obter_curva') perguntar();       // atualiza a tela sem esperar o próximo ciclo
     return dados;
   } catch {
     return { ok: false, erro: 'sem_conexao' };
   }
 }
 
-/** Curva de velocidade de uma tentativa (etapa da Sessão). */
-export async function obterCurva() {
-  return null;
+/** Curva de velocidade de uma tentativa: { pontos: [[t_s, v], ...], escala_max } ou null se não houver. */
+export async function obterCurva(numero) {
+  const r = await enviarComando('obter_curva', { numero });
+  return r.ok ? r.curva : null;
 }

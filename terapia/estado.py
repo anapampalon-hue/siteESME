@@ -15,21 +15,26 @@ Tentativa (escopo do Sandro, seção 8.2):
   evento 2 (bobina n)  -> "em_andamento"; alcance = bobina mais alta cruzada
   evento 3 (gol)       -> alcance = gol (76 cm)
   evento 4 (fim)       -> "concluida", com resultado gol | parou | interrompida (+ motivo)
-A fluidez ainda não é calculada: fica "indisponível" com o motivo "nao_calculada".
+Fluidez (escopo 9.2): calculada em SEGUNDO PLANO por fluidez.py. Ao fim da tentativa ela aparece como
+"calculando" até chegarem as amostras do batedor que cobrem o fim (ou 3 s); a próxima tentativa já pode rodar.
 """
+import collections
 import threading
 import time
+import traceback
 import unicodedata
 import uuid
 
 from django.utils import timezone
 
+from . import fluidez as calculo_fluidez
 from .models import EventoBobina, Fisioterapeuta, Sessao, Tentativa
 from .protocolo import EV_BOBINA, EV_FIM, EV_GOL, EV_INICIO
 
 SEM_SINAL_S = 2.0   # escopo do Sandro: ~2 s sem pacotes = sem sinal
 BOBINAS_CM = [20, 27, 34, 41, 48, 55, 62, 69]
 GOL_CM = 76
+PRAZO_CALCULO_S = 3.0   # escopo: espera as amostras do batedor por até ~3 s
 COD_GOL = 9         # Tentativa.bobinas_atingidas == 9 significa "chegou ao gol"
 
 
@@ -55,27 +60,30 @@ def _alcance(t):
     return {'cm': None, 'bobina': None, 'gol': False}
 
 
-def _tentativa_dict(t):
-    """Uma tentativa no formato do contrato (seção 12.3). A tela só mostra; nunca recalcula."""
+def _tentativa_dict(t, calculando=False):
+    """Uma tentativa no formato do contrato (seção 12.3). A tela só mostra; nunca recalcula.
+    estado: aguardando_disco | em_andamento | calculando (fluidez a caminho) | concluida"""
     d = {'numero': t.numero, 'anulada': t.anulada, 'alcance': _alcance(t)}
     if t.finalizada_em is None:
         d['estado'] = 'em_andamento' if t.bobinas_atingidas else 'aguardando_disco'
         return d
-    d.update(estado='concluida', resultado=t.resultado)
+    d.update(estado='calculando' if calculando else 'concluida', resultado=t.resultado)
     if t.motivo:
         d['motivo'] = t.motivo
+    if calculando:
+        return d
     d['fluidez'] = {'nivel': t.fluidez_nivel or 'indisponivel'}
     if d['fluidez']['nivel'] == 'indisponivel':
         d['fluidez']['motivo'] = t.fluidez_motivo or 'nao_calculada'
     return d
 
 
-def _resumo(tentativas):
-    """Totais da sessão: só tentativas concluídas e NÃO anuladas."""
+def _resumo(tentativas, calculando=()):
+    """Totais da sessão: só tentativas concluídas e NÃO anuladas ('fluidez.calculando' = quantas ainda esperam o cálculo)."""
     validas = [t for t in tentativas if t.finalizada_em is not None and not t.anulada]
-    fluidez = {'alta': 0, 'media': 0, 'baixa': 0, 'indisponivel': 0}
+    fluidez = {'alta': 0, 'media': 0, 'baixa': 0, 'indisponivel': 0, 'calculando': 0}
     for t in validas:
-        fluidez[t.fluidez_nivel or 'indisponivel'] += 1
+        fluidez['calculando' if t.pk in calculando else (t.fluidez_nivel or 'indisponivel')] += 1
     melhor = {'cm': None, 'bobina': None, 'gol': False}
     if validas:
         m = max(validas, key=lambda t: t.bobinas_atingidas)
@@ -101,6 +109,13 @@ class Programa:
         self.leitura_id = None                    # sessão encerrada, ainda na tela (modo leitura)
         self.encerrando = False                   # encerrar pedido com o disco ainda rolando
         self._ultimo = None
+        # --- fluidez em segundo plano ---
+        self._amostras = collections.deque(maxlen=40000)   # (instante, ax, ay, az) do batedor, ~6 min a 100 Hz
+        self._ini = {}                            # pk da tentativa aberta -> instante em que começou
+        self._pend = {}                           # pk da tentativa -> {'ini','fim','prazo'} (fluidez a calcular)
+        self._ref_repouso = None                  # último repouso do batedor medido nesta sessão
+        self._worker = None
+        self.calculo_em_segundo_plano = True      # os testes desligam e chamam processar_calculos() à mão
 
     # ================= entrada: o que o receptor chama =================
     def ao_receber_mesa(self, pacote):
@@ -123,8 +138,13 @@ class Programa:
 
     def ao_receber_batedor(self, pacote):
         with self._lock:
-            self.batedor_visto = self._relogio()
-            self._bump()      # (as amostras serão usadas no cálculo da fluidez)
+            agora = self.batedor_visto = self._relogio()
+            if pacote.amostras:
+                ultimo = pacote.amostras[-1][1]
+                for (_, t_us, ax, ay, az, _gx, _gy, _gz) in pacote.amostras:
+                    # o relógio do batedor é outro: ancora a última amostra na hora da chegada do pacote
+                    self._amostras.append((agora - ((ultimo - t_us) & 0xFFFFFFFF) / 1e6, ax, ay, az))
+            self._bump()
 
     def _mesa_reiniciou(self, pacote):
         """A mesa ligou de novo: o contador volta a zero (NÃO é um aperto de 3 s) e os ev_id recomeçam."""
@@ -155,7 +175,8 @@ class Programa:
             if self.encerrando:
                 return
             n = (Tentativa.objects.filter(sessao_id=self.sessao_id).order_by('-numero').values_list('numero', flat=True).first() or 0) + 1
-            Tentativa.objects.create(sessao_id=self.sessao_id, numero=n, iniciada_em=timezone.now())
+            nova = Tentativa.objects.create(sessao_id=self.sessao_id, numero=n, iniciada_em=timezone.now())
+            self._ini[nova.pk] = self._relogio()
             self._mexeu()
         elif ev.tipo in (EV_BOBINA, EV_GOL):
             t = self._aberta()
@@ -187,11 +208,65 @@ class Programa:
             resultado, motivo = Tentativa.Resultado.INTERROMPIDA, 'nova_tentativa'   # "parou" exige ao menos 1 bobina
         t.resultado, t.motivo = resultado, motivo
         t.finalizada_em = timezone.now()
-        t.fluidez_nivel, t.fluidez_motivo = 'indisponivel', 'nao_calculada'
+        t.fluidez_nivel, t.fluidez_motivo = '', ''
         t.save()
+        ini, fim = self._ini.pop(t.pk, None), self._relogio()
+        if ini is None:                                   # (servidor reiniciou no meio: não há amostras guardadas)
+            self._gravar_fluidez(t.pk, {'nivel': 'indisponivel', 'motivo': 'sem_dados_batedor'})
+        else:
+            self._pend[t.pk] = {'ini': ini, 'fim': fim, 'prazo': fim + PRAZO_CALCULO_S}   # "Calculando fluidez…"
+            self._garantir_worker()
         self._mexeu()
         if self.encerrando:
             self._concluir()
+
+    # ================= fluidez em segundo plano =================
+    def _garantir_worker(self):
+        if self.calculo_em_segundo_plano and self._worker is None:
+            self._worker = threading.Thread(target=self._laco_calculo, name='esme-fluidez', daemon=True)
+            self._worker.start()
+
+    def _laco_calculo(self):
+        """Thread própria: confere a fila a cada 0,2 s e some quando não há mais nada a calcular."""
+        try:
+            while True:
+                time.sleep(0.2)
+                try:
+                    self.processar_calculos()
+                except Exception:
+                    traceback.print_exc()
+                with self._lock:
+                    if not self._pend:
+                        self._worker = None
+                        return
+        finally:
+            from django.db import connections
+            connections.close_all()
+
+    def processar_calculos(self):
+        """Calcula a fluidez das tentativas em espera cujas amostras já chegaram (ou cujo prazo de 3 s acabou).
+        A conta roda FORA do lock: o receptor e a tela não esperam por ela."""
+        agora = self._relogio()
+        with self._lock:
+            ultimo = self._amostras[-1][0] if self._amostras else None
+            prontos = []
+            for pk, p in list(self._pend.items()):
+                if (ultimo is not None and ultimo >= p['fim']) or agora >= p['prazo']:
+                    janela = [a for a in self._amostras if p['ini'] <= a[0] <= p['fim']]
+                    prontos.append((pk, janela, self._ref_repouso))
+        for pk, janela, ref in prontos:
+            resultado = calculo_fluidez.calcular(janela, ref)
+            with self._lock:
+                self._gravar_fluidez(pk, resultado)
+
+    def _gravar_fluidez(self, pk, r):
+        self._pend.pop(pk, None)
+        if r.get('repouso'):
+            self._ref_repouso = r['repouso']
+        n = Tentativa.objects.filter(pk=pk).update(
+            fluidez_nivel=r['nivel'], fluidez_motivo=r.get('motivo', ''), curva=r.get('curva'))
+        if n:
+            self._mexeu()
 
     # ================= comandos (vindos da tela) =================
     def preparar_sessao(self, user, paciente, data_iso):
@@ -276,6 +351,22 @@ class Programa:
     def restaurar(self, user, numero):
         return self._marcar(user, numero, False)
 
+    def obter_curva(self, user, numero):
+        """Curva de velocidade da tentativa, para o Detalhe. A escala é a MESMA em todas as tentativas da sessão
+        (escopo 9.2: o que se compara é a forma). curva = None quando não há (fluidez indisponível ou ainda calculando)."""
+        with self._lock:
+            sid = self.sessao_id or self.leitura_id
+            t = Tentativa.objects.filter(sessao_id=sid, numero=numero, finalizada_em__isnull=False).select_related('sessao').first() if sid else None
+            if t is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._eh_dono(user, t.sessao.fisioterapeuta_id):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            if not t.curva or t.pk in self._pend:
+                return {'ok': True, 'curva': None}
+            todas = Tentativa.objects.filter(sessao_id=sid, curva__isnull=False).values_list('curva', flat=True)
+            escala = max((c.get('v_max', 0) for c in todas if c), default=t.curva['v_max'])
+            return {'ok': True, 'curva': {'pontos': t.curva['pontos'], 'escala_max': escala}}
+
     def fechar_leitura(self, user):
         with self._lock:
             self.leitura_id = None
@@ -301,7 +392,8 @@ class Programa:
             'paciente': s.paciente_nome, 'data': s.data_sessao.isoformat(),
             'inicio': s.iniciada_em.isoformat() if s.iniciada_em else None,
             'fim': s.finalizada_em.isoformat() if s.finalizada_em else None,
-            'status': status, 'tentativas': [_tentativa_dict(t) for t in tents], 'resumo': _resumo(tents),
+            'status': status, 'tentativas': [_tentativa_dict(t, t.pk in self._pend) for t in tents],
+            'resumo': _resumo(tents, self._pend),
             'pdf': None, 'encerrando': self.encerrando and status == 'em_andamento',
         }
 
@@ -357,6 +449,7 @@ class Programa:
             iniciada_em=timezone.now(),   # a hora do aperto de 3 s é a hora de início (escopo 7.6)
         )
         self.sessao_id, self.espera, self.encerrando = s.pk, None, False
+        self._ref_repouso = None
         self._mexeu()
 
 
