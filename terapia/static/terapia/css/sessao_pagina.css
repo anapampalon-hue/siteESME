@@ -1,0 +1,162 @@
+/* sessao_pagina.css — SÓ a página da Sessão (tentativas). Usa as variáveis e o .botao do esme.css.
+   Todas as classes começam com "ses-" para não esbarrar no sessao.css da Nova sessão / Espera da mesa. */
+
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* a Sessão precisa de mais largura que o resto do site */
+main:has(.ses) { width: min(100%, 1180px); padding-top: 1.2rem; }
+.ses { display: grid; gap: 1.5rem; }
+
+.ses-btn { padding: 0.55rem 0.9rem; font-size: 1rem; box-shadow: 4px 4px 0 var(--tinta); }
+.ses-btn:hover { box-shadow: 6px 6px 0 var(--tinta); }
+.ses-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--tinta); }
+
+/* ---------- topo: cada coisa na sua faixa, sem ficar uma por cima da outra ---------- */
+.ses-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 2rem; padding-top: 0.4rem; }
+.ses-info { display: flex; flex-wrap: wrap; gap: 0.3rem 2rem; }
+.ses-info p { margin: 0; font-size: 1.15rem; }
+.ses-info { max-width: 100%; }
+/* sinais da mesa e do batedor: sempre no canto superior direito, na linha do logo (não importa o tamanho do nome do paciente) */
+.ses-sinais {
+    position: absolute; top: 2.4rem; right: 2rem; z-index: 5; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.3rem 1.4rem;
+    max-width: min(62vw, 680px); padding: 0.45rem 1rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); border-radius: 12px; box-shadow: 4px 4px 0 var(--tinta);
+}
+@media (max-width: 900px) { .ses-sinais { position: static; margin-left: auto; max-width: 100%; } }
+.ses-sinal { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; margin: 0; font-weight: 600; }
+.ses-ponto { width: 1rem; height: 1rem; border-radius: 50%; background: #e5372b; border: 2px solid var(--tinta); }   /* vermelha = sem sinal */
+.ses-sinal[data-estado="ok"] .ses-ponto { background: #35c24a; }                                                    /* verde = conectada */
+
+.ses-faixa-erro {
+    margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: #5c0b0b; background: #ffd9d6;
+    border: 3px solid #7a1010; box-shadow: 5px 5px 0 var(--tinta);
+}
+
+/* ---------- totais ---------- */
+.ses-cartoes { display: grid; grid-template-columns: 1fr 0.8fr 1.3fr 2.9fr; gap: 1.2rem; align-items: stretch; }
+.ses-cartao {
+    padding: 0.8rem 1.1rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+.ses-cartao h2 { margin: 0 0 0.25rem; font: 700 0.95rem/1.2 var(--fonte-titulo); }
+.ses-numerao { margin: 0; font: 700 2rem/1.1 var(--fonte-titulo); }
+.ses-medio { margin: 0; font: 700 1.35rem/1.3 var(--fonte-titulo); }
+
+/* "O que fazer agora": uma frase só (muda sozinha) + uma linha reservada para o aviso de sem sinal */
+.ses-frase { margin: 0; min-height: 2.7em; font-size: 1.1rem; font-weight: 700; line-height: 1.35; }   /* 2 linhas reservadas: o cartão não muda de altura */
+.ses-frase.troca { animation: entra 0.35s ease-out; }
+@keyframes entra { from { opacity: 0; transform: translateY(0.35rem); } to { opacity: 1; transform: none; } }
+.ses-guia-aviso { min-height: 1.4rem; margin: 0.3rem 0 0; font-size: 0.92rem; font-weight: 700; color: #7a1010; }
+@media (max-width: 900px) { .ses-cartoes { grid-template-columns: 1fr 1fr; } .ses-cartao-largo { grid-column: 1 / -1; } }
+
+/* ---------- tabela de tentativas ---------- */
+.ses-tabela { overflow-x: auto; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta); }
+.ses-tabela table { width: 100%; border-collapse: collapse; }
+.ses-tabela th, .ses-tabela td { padding: 0.75rem 1rem; text-align: left; vertical-align: top; }
+.ses-tabela thead th { color: var(--branco); background: var(--tinta); font-family: var(--fonte-titulo); }
+.ses-tabela tbody tr + tr > * { border-top: 2px solid rgba(13, 13, 26, 0.2); }
+.ses-tabela small { display: block; font-size: 0.88rem; font-weight: 400; color: #3a3a55; }
+.ses-num { width: 5.5rem; font: 700 1.25rem var(--fonte-titulo); }
+.ses-estado { font-weight: 700; }
+.ses-acoes { white-space: nowrap; }
+.ses-acoes .botao { margin-right: 0.7rem; }
+.ses-vazio { margin: 0; padding: 2rem 1.2rem; font-weight: 600; color: var(--tinta); background: var(--gelo); }
+
+/* tentativa em curso: faixa verde */
+tr.ses-ativa > * { background: #e8ffe4; }
+tr.ses-ativa > th { box-shadow: inset 8px 0 0 var(--alien); }
+
+/* fluidez sendo calculada: pontinhos que pulam (a terapeuta continua trabalhando) */
+.ses-calculando { display: inline-flex; align-items: center; gap: 0.5rem; font-style: italic; }
+.ses-pontinhos { display: inline-flex; gap: 0.25rem; }
+.ses-pontinhos i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--espaco); animation: pular 1s ease-in-out infinite; }
+.ses-pontinhos i:nth-child(2) { animation-delay: 0.15s; }
+.ses-pontinhos i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes pular { 0%, 70%, 100% { transform: translateY(0); opacity: 0.5; } 35% { transform: translateY(-0.4rem); opacity: 1; } }
+
+/* tentativa ANULADA: cinza escuro, com o botão "Desfazer" */
+tr.ses-anulada > * { color: #e4e4ee; background: #4a4a5e; }
+tr.ses-anulada small { color: #c3c3d4; }
+tr.ses-anulada .ses-rotulo-anulada {
+    display: inline-block; margin-top: 0.2rem; padding: 0.1rem 0.5rem; font-size: 0.8rem; font-weight: 700;
+    color: #4a4a5e; background: #e4e4ee; border-radius: 3px;
+}
+tr.ses-anulada .ses-pontinhos i { background: #e4e4ee; }
+
+/* ---------- código do paciente e comentário da terapeuta ---------- */
+.ses-codigo { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.04em; }
+
+.ses-aviso-interrompida {
+    margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: #4d3b00; background: #ffe58f;
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+
+.ses-comentario {
+    display: grid; gap: 0.5rem; padding: 0.9rem 1.1rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+.ses-comentario-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.3rem 1rem; }
+.ses-comentario h2 { margin: 0; font: 700 1.1rem/1.2 var(--fonte-titulo); }
+.ses-comentario h2 small { font: 400 0.9rem var(--fonte-texto); color: #3a3a55; }
+.ses-comentario-estado { min-height: 1.3em; margin: 0; font-size: 0.9rem; font-weight: 700; color: #1d6b2c; }   /* "Salvando…" / "Salvo" */
+.ses-comentario textarea {
+    width: 100%; min-height: 6.5rem; padding: 0.6rem 0.8rem; resize: vertical; font: 1rem/1.45 var(--fonte-texto); color: var(--tinta);
+    background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
+.ses-comentario textarea:focus-visible { outline: 3px solid var(--espaco); outline-offset: 2px; }
+.ses-comentario-pe { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3rem 1rem; }
+.ses-comentario-pe p { margin: 0; font-size: 0.9rem; color: #3a3a55; }
+.ses-comentario-erro { margin: 0; font-weight: 700; color: #7a1010; }
+
+/* ---------- rodapé: caixinhas de fluidez (sessão encerrada) + botão ---------- */
+.ses-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem 1.5rem; }
+.ses-fluidez { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
+.ses-fluidez h2 { margin: 0; font: 700 1.1rem var(--fonte-titulo); }
+.ses-fluidez ul { display: flex; flex-wrap: wrap; gap: 0.8rem; margin: 0; padding: 0; list-style: none; }
+.ses-caixa {
+    display: grid; justify-items: center; min-width: 5.6rem; padding: 0.45rem 0.9rem; color: var(--tinta);
+    background: var(--gelo); border: 3px solid var(--tinta); border-radius: 10px; box-shadow: 4px 4px 0 var(--tinta);
+}
+.ses-caixa strong { font: 700 1.6rem/1.1 var(--fonte-titulo); }
+.ses-caixa span { font-size: 0.9rem; font-weight: 700; }
+.ses-caixa-alta { background: var(--alien); }
+.ses-caixa-media { background: #ffe58f; }
+.ses-caixa-baixa { background: #ffb3a7; }
+.ses-caixa-indisponivel { background: #c6cfe0; }
+.ses-caixa-calculando { background: var(--branco); font-style: italic; }
+.ses-botoes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.8rem 1rem; margin-left: auto; }
+.ses-exportar { display: inline-flex; flex-wrap: wrap; gap: 0.8rem; }
+.ses-exportar .botao { display: inline-block; width: auto; text-decoration: none; }
+.ses-encerrar { width: auto; }
+
+/* ---------- janela Detalhe ---------- */
+dialog.ses-detalhe {
+    width: min(92vw, 720px); padding: 1.2rem 1.4rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta);
+}
+dialog.ses-detalhe::backdrop { background: rgba(13, 13, 26, 0.72); }
+dialog.ses-detalhe header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+dialog.ses-detalhe h2 { margin: 0; font: 700 1.5rem/1.2 var(--fonte-titulo); }
+dialog.ses-detalhe footer { display: flex; justify-content: space-between; gap: 1rem; }
+.ses-det-resumo { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 1rem 0; }
+.ses-det-resumo dt { font-weight: 700; }
+.ses-det-resumo dd { margin: 0; }
+.ses-det-resumo small { display: block; font-size: 0.88rem; color: #3a3a55; }
+
+/* a área do gráfico tem altura fixa: o aviso fica NO MEIO enquanto não há curva */
+.ses-det-curva {
+    display: grid; place-items: center; min-height: 250px; padding: 0.5rem;
+    background: var(--branco); border: 3px solid var(--tinta);
+}
+.ses-det-curva svg { display: block; width: 100%; height: auto; }
+.ses-det-curva .area { fill: rgba(52, 52, 168, 0.18); stroke: none; }
+.ses-det-curva .linha { fill: none; stroke: var(--espaco); stroke-width: 3.5; stroke-linejoin: round; }
+.ses-det-curva .eixo { stroke: var(--tinta); stroke-width: 2; }
+.ses-det-curva text { font: 13px var(--fonte-texto); fill: var(--tinta); }
+.ses-det-aviso { display: grid; justify-items: center; gap: 0.8rem; margin: 0; padding: 1rem; text-align: center; font-weight: 600; }
+.ses-det-aviso .ses-pontinhos i { width: 0.7rem; height: 0.7rem; }
+.ses-legenda { margin: 0.6rem 0 0; }
+.ses-aviso-fixo { margin: 0.6rem 0 1rem; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) { .ses-pontinhos i { animation: none; opacity: 1; } }

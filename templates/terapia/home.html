@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load esme_extras %}
+{% block title %}Início · ESME{% endblock %}
+{% block content %}
+{% navbar "inicio" %}
+
+<!-- Div que ocupa a altura total e centraliza tudo no meio da tela -->
+<div style="display: flex; flex-direction: column; justify-content: center; min-height: 60vh; align-items: center; text-align: center;">
+
+    <div style="width: 100%; max-width: 460px;">
+        <h1 style="margin: 0 0 0.5rem;">Olá, {{ nome }}.</h1>
+        <p class="lead" style="margin: 0 0 2rem;">O que vamos fazer agora?</p>
+
+        <div class="acoes" style="margin: 0 auto;">
+            {% if configurado %}
+                <a class="botao botao-grande" href="{% url 'nova_sessao' %}">Nova sessão</a>
+            {% else %}
+                <span class="botao botao-grande botao-desativado" aria-disabled="true">Nova sessão<span class="sr-only"> (configure as placas primeiro)</span></span>
+            {% endif %}
+            <a class="botao botao-claro botao-grande" href="{% url 'historico' %}">Histórico de sessões</a>
+            {% if eh_gestor %}
+                <a class="botao botao-claro botao-grande" href="#">Equipe</a>
+            {% endif %}
+
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="botao botao-contorno botao-grande">Sair</button>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

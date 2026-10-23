@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static esme_extras %}
+{% block title %}Sobre nós · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/sobre.css' %}">
+{% navbar "sobre" %}
+
+<div class="sobre">
+    <h1>Sobre nós</h1>
+
+    {# os textos de cada bloco serão escritos com o grupo #}
+    <section class="sobre-bloco" aria-labelledby="sb-quem">
+        <h2 id="sb-quem">Quem somos</h2>
+        <p class="sobre-pendente">Escrever com o grupo.</p>
+    </section>
+
+    <section class="sobre-bloco" aria-labelledby="sb-termos">
+        <h2 id="sb-termos">Termos</h2>
+        <p class="sobre-pendente">Escrever com o grupo.</p>
+    </section>
+
+    <section class="sobre-bloco" aria-labelledby="sb-indicadores">
+        <h2 id="sb-indicadores">Como ler os indicadores</h2>
+        <p class="sobre-pendente">Escrever com o grupo.</p>
+    </section>
+</div>
+{% endblock %}

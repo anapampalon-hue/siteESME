@@ -1,0 +1,8 @@
+/* sobre.css — página "Sobre nós": um bloquinho para cada assunto. */
+main:has(.sobre) { width: min(100%, 980px); }
+.sobre { display: grid; gap: 1.4rem; }
+.sobre h1 { margin: 0; font: 700 1.9rem/1.2 var(--fonte-titulo); }
+.sobre-bloco { padding: 1rem 1.3rem; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta); }
+.sobre-bloco h2 { margin: 0 0 0.4rem; font: 700 1.25rem/1.2 var(--fonte-titulo); }
+.sobre-bloco p { margin: 0; line-height: 1.5; }
+.sobre-pendente { font-style: italic; color: #3a3a55; }
