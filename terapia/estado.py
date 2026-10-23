@@ -28,13 +28,15 @@ import uuid
 from django.utils import timezone
 
 from . import fluidez as calculo_fluidez
-from .models import EventoBobina, Fisioterapeuta, Sessao, Tentativa
+from .campos import codigo_paciente, normalizar_nome
+from .models import EventoBobina, Fisioterapeuta, Sessao, Tentativa, eh_gestor
 from .protocolo import EV_BOBINA, EV_FIM, EV_GOL, EV_INICIO
 
 SEM_SINAL_S = 2.0   # escopo do Sandro: ~2 s sem pacotes = sem sinal
 BOBINAS_CM = [20, 27, 34, 41, 48, 55, 62, 69]
 GOL_CM = 76
 PRAZO_CALCULO_S = 3.0   # escopo: espera as amostras do batedor por até ~3 s
+COMENTARIO_MAX = 2000   # letras do comentário da terapeuta
 COD_GOL = 9         # Tentativa.bobinas_atingidas == 9 significa "chegou ao gol"
 
 
@@ -90,6 +92,13 @@ def _resumo(tentativas, calculando=()):
         melhor = _alcance(m)
     return {'tentativas_validas': len(validas), 'gols': sum(1 for t in validas if t.resultado == 'gol'),
             'melhor_alcance': melhor, 'fluidez': fluidez}
+
+
+def _duracao_min(s):
+    """Duração em minutos (só se a sessão já tem hora de início e de fim)."""
+    if s.iniciada_em and s.finalizada_em:
+        return max(0, round((s.finalizada_em - s.iniciada_em).total_seconds() / 60))
+    return None
 
 
 class Programa:
@@ -359,13 +368,98 @@ class Programa:
             t = Tentativa.objects.filter(sessao_id=sid, numero=numero, finalizada_em__isnull=False).select_related('sessao').first() if sid else None
             if t is None:
                 return {'ok': False, 'erro': 'nao_encontrado'}
-            if not self._eh_dono(user, t.sessao.fisioterapeuta_id):
+            if not self._pode_ver(user, t.sessao.fisioterapeuta_id):
                 return {'ok': False, 'erro': 'sem_permissao'}
             if not t.curva or t.pk in self._pend:
                 return {'ok': True, 'curva': None}
             todas = Tentativa.objects.filter(sessao_id=sid, curva__isnull=False).values_list('curva', flat=True)
             escala = max((c.get('v_max', 0) for c in todas if c), default=t.curva['v_max'])
             return {'ok': True, 'curva': {'pontos': t.curva['pontos'], 'escala_max': escala}}
+
+    # ================= comentário, histórico e sessões antigas =================
+    def salvar_comentario(self, user, texto):
+        """Comentário livre e OPCIONAL da terapeuta, na sessão aberta ou numa sessão aberta do histórico."""
+        with self._lock:
+            sid = self.sessao_id or self.leitura_id
+            s = Sessao.objects.filter(pk=sid).first() if sid else None
+            if s is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._eh_dono(user, s.fisioterapeuta_id):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            texto = (texto or '').replace('\r\n', '\n').strip()
+            if len(texto) > COMENTARIO_MAX:
+                return {'ok': False, 'erro': 'comentario_longo'}
+            s.comentario = texto
+            s.comentario_em = timezone.now() if texto else None
+            s.save(update_fields=['comentario', 'comentario_em'])
+            return {'ok': True}
+
+    def abrir_sessao(self, user, pk):
+        """Abre uma sessão do histórico na tela de Sessão (só leitura, com Detalhes, Anular e comentário)."""
+        with self._lock:
+            if self.espera or self.sessao_id:
+                return {'ok': False, 'erro': 'sessao_aberta'}
+            s = Sessao.objects.visiveis_para(user).filter(pk=pk).first()
+            if s is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            self.leitura_id = s.pk
+            self._mexeu()
+            return {'ok': True}
+
+    def concluir_interrompida(self, user):
+        """"Encerrar" de uma sessão interrompida (o programa foi fechado): só troca o status para concluída."""
+        with self._lock:
+            s = Sessao.objects.filter(pk=self.leitura_id).first() if self.leitura_id else None
+            if s is None or s.status != Sessao.Status.EM_ANDAMENTO:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._eh_dono(user, s.fisioterapeuta_id):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            ultima = s.tentativas.filter(finalizada_em__isnull=False).order_by('-finalizada_em').first()
+            if ultima is None:
+                s.delete()                          # sem tentativas não se guarda
+                self.leitura_id = None
+            else:
+                s.status, s.finalizada_em = Sessao.Status.CONCLUIDA, ultima.finalizada_em   # hora do fim = última tentativa gravada
+                s.save(update_fields=['status', 'finalizada_em'])
+            self._mexeu()
+            return {'ok': True}
+
+    def listar_historico(self, user, busca='', data_iso='', revelar=False):
+        """Lista de sessões (mais recente primeiro). O nome só vai junto se `revelar` — o padrão é só o código pseudônimo."""
+        with self._lock:
+            pre = normalizar_nome(busca)
+            alvo = _data_iso_valida(data_iso) if data_iso else None
+            linhas = []
+            for s in Sessao.objects.visiveis_para(user).select_related('fisioterapeuta').order_by('-iniciada_em', '-criada_em'):
+                if s.pk == self.sessao_id:
+                    continue                        # a sessão em andamento não é histórico ainda
+                tents = list(s.tentativas.all())
+                finais = [t for t in tents if t.finalizada_em is not None]
+                if not finais:
+                    continue                        # sessão sem tentativas não aparece
+                if alvo and s.data_sessao != alvo:
+                    continue
+                nome = s.paciente_nome or ''
+                codigo = s.garantir_codigo()
+                if pre and pre not in normalizar_nome(nome) and pre not in codigo.lower().replace('-', '') and pre not in codigo.lower():
+                    continue
+                validas = [t for t in finais if not t.anulada]
+                melhor = _alcance(max(validas, key=lambda t: t.bobinas_atingidas)) if validas else {'cm': None, 'bobina': None, 'gol': False}
+                linha = {
+                    'id': s.pk, 'codigo': codigo, 'data': s.data_sessao.isoformat(),
+                    'inicio': s.iniciada_em.isoformat() if s.iniciada_em else None,
+                    'tentativas_validas': len(validas), 'melhor_alcance': melhor,
+                    'status': 'interrompida' if s.status == Sessao.Status.EM_ANDAMENTO else 'concluida',
+                    'tem_comentario': bool(s.comentario),
+                }
+                if revelar:
+                    linha['nome'] = nome
+                if eh_gestor(user):
+                    linha['fisio'] = s.fisioterapeuta.nome
+                linhas.append(linha)
+                if len(linhas) >= 300:
+                    break
+            return {'ok': True, 'sessoes': linhas}
 
     def fechar_leitura(self, user):
         with self._lock:
@@ -389,10 +483,11 @@ class Programa:
     def _sessao_dict(self, s, status):
         tents = list(s.tentativas.order_by('-numero'))
         return {
+            'id': s.pk, 'codigo': s.garantir_codigo(), 'comentario': s.comentario or '',
             'paciente': s.paciente_nome, 'data': s.data_sessao.isoformat(),
             'inicio': s.iniciada_em.isoformat() if s.iniciada_em else None,
             'fim': s.finalizada_em.isoformat() if s.finalizada_em else None,
-            'status': status, 'tentativas': [_tentativa_dict(t, t.pk in self._pend) for t in tents],
+            'status': status, 'duracao_min': _duracao_min(s), 'tentativas': [_tentativa_dict(t, t.pk in self._pend) for t in tents],
             'resumo': _resumo(tents, self._pend),
             'pdf': None, 'encerrando': self.encerrando and status == 'em_andamento',
         }
@@ -410,7 +505,9 @@ class Programa:
                 for sid, tela_s, status in ((self.sessao_id, 'sessao_em_andamento', 'em_andamento'),
                                             (self.leitura_id, 'sessao_encerrada', 'concluida')):
                     s = Sessao.objects.filter(pk=sid).first() if sid else None
-                    if s and self._eh_dono(user, s.fisioterapeuta_id):
+                    if s and self._pode_ver(user, s.fisioterapeuta_id):
+                        if tela_s == 'sessao_encerrada' and s.status == Sessao.Status.EM_ANDAMENTO:
+                            status = 'interrompida'      # o programa foi fechado no meio dela
                         tela, sessao = tela_s, self._sessao_dict(s, status)
                         break
             return {
@@ -428,6 +525,10 @@ class Programa:
         fisio = getattr(user, 'fisioterapeuta', None)
         return bool(fisio and fisio.pk == fisio_id) or user.is_superuser
 
+    def _pode_ver(self, user, fisio_id):
+        """Ler uma sessão (histórico, curva, relatório): a dona da sessão e o gestor."""
+        return self._eh_dono(user, fisio_id) or eh_gestor(user)
+
     def _mexeu(self):
         self._rev += 1
         self._bump()
@@ -444,6 +545,7 @@ class Programa:
         fisio = Fisioterapeuta.objects.get(pk=e['fisio_id'])
         s = Sessao.objects.create(
             fisioterapeuta=fisio, paciente_nome=e['paciente'], data_sessao=e['data'],
+            codigo_paciente=codigo_paciente(fisio.pk, e['paciente']),
             status=Sessao.Status.EM_ANDAMENTO, circuito_ok=True,
             batedor_conectado=self._equip(self.batedor_visto) == 'ok',
             iniciada_em=timezone.now(),   # a hora do aperto de 3 s é a hora de início (escopo 7.6)

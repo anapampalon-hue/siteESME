@@ -77,6 +77,31 @@ tr.ses-anulada .ses-rotulo-anulada {
 }
 tr.ses-anulada .ses-pontinhos i { background: #e4e4ee; }
 
+/* ---------- código do paciente e comentário da terapeuta ---------- */
+.ses-codigo { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.04em; }
+
+.ses-aviso-interrompida {
+    margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: #4d3b00; background: #ffe58f;
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+
+.ses-comentario {
+    display: grid; gap: 0.5rem; padding: 0.9rem 1.1rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+.ses-comentario-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.3rem 1rem; }
+.ses-comentario h2 { margin: 0; font: 700 1.1rem/1.2 var(--fonte-titulo); }
+.ses-comentario h2 small { font: 400 0.9rem var(--fonte-texto); color: #3a3a55; }
+.ses-comentario-estado { min-height: 1.3em; margin: 0; font-size: 0.9rem; font-weight: 700; color: #1d6b2c; }   /* "Salvando…" / "Salvo" */
+.ses-comentario textarea {
+    width: 100%; min-height: 6.5rem; padding: 0.6rem 0.8rem; resize: vertical; font: 1rem/1.45 var(--fonte-texto); color: var(--tinta);
+    background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
+.ses-comentario textarea:focus-visible { outline: 3px solid var(--espaco); outline-offset: 2px; }
+.ses-comentario-pe { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.3rem 1rem; }
+.ses-comentario-pe p { margin: 0; font-size: 0.9rem; color: #3a3a55; }
+.ses-comentario-erro { margin: 0; font-weight: 700; color: #7a1010; }
+
 /* ---------- rodapé: caixinhas de fluidez (sessão encerrada) + botão ---------- */
 .ses-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem 1.5rem; }
 .ses-fluidez { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
@@ -93,7 +118,10 @@ tr.ses-anulada .ses-pontinhos i { background: #e4e4ee; }
 .ses-caixa-baixa { background: #ffb3a7; }
 .ses-caixa-indisponivel { background: #c6cfe0; }
 .ses-caixa-calculando { background: var(--branco); font-style: italic; }
-.ses-encerrar { width: auto; margin-left: auto; }
+.ses-botoes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.8rem 1rem; margin-left: auto; }
+.ses-exportar { display: inline-flex; flex-wrap: wrap; gap: 0.8rem; }
+.ses-exportar .botao { display: inline-block; width: auto; text-decoration: none; }
+.ses-encerrar { width: auto; }
 
 /* ---------- janela Detalhe ---------- */
 dialog.ses-detalhe {

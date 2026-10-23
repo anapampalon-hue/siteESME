@@ -118,6 +118,12 @@ class Sessao(models.Model):
     paciente_nome = CampoCriptografado(max_length=150)
     data_sessao = models.DateField(default=timezone.localdate)
 
+    # Pseudônimo do paciente (campos.codigo_paciente): é o que aparece no histórico, no CSV e, por padrão, no relatório
+    codigo_paciente = models.CharField(max_length=12, blank=True, db_index=True)
+    # Comentário livre da terapeuta (opcional). Criptografado, porque pode citar dados do paciente.
+    comentario = CampoCriptografado(blank=True, default='')
+    comentario_em = models.DateTimeField(null=True, blank=True)
+
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.EM_ANDAMENTO)
 
     # "Foto" do hardware no momento em que a sessão iniciou
@@ -142,6 +148,15 @@ class Sessao(models.Model):
     def __str__(self):
         # só iniciais: o nome completo não vai para listas, logs ou admin
         return f'{self.iniciais_paciente} — {self.data_sessao:%d/%m/%Y}'
+
+    def garantir_codigo(self):
+        """Sessões antigas (de antes do pseudônimo) ganham o código na primeira vez que são lidas."""
+        if not self.codigo_paciente and self.paciente_nome:
+            from .campos import codigo_paciente
+            self.codigo_paciente = codigo_paciente(self.fisioterapeuta_id, self.paciente_nome)
+            if self.pk:
+                self.save(update_fields=['codigo_paciente'])
+        return self.codigo_paciente
 
     @property
     def iniciais_paciente(self):

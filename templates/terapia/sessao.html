@@ -5,7 +5,9 @@
 {% block content %}
 <link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}">
 
-<div class="ses" id="app" data-url-inicio="{% url 'home' %}" data-url-espera="{% url 'espera_mesa' %}">
+<div class="ses" id="app" data-url-inicio="{% url 'home' %}" data-url-espera="{% url 'espera_mesa' %}"
+     data-url-historico="{% url 'historico' %}"
+     data-url-relatorio="{% url 'relatorio' 0 %}" data-url-csv="{% url 'exportar_csv' 0 %}">
 
     {# a logo é a do cabeçalho do site (a mesma da Início, e clicar nela volta para o Início) #}
     <p id="aviso-js" class="ses-faixa-erro" role="alert">
@@ -16,6 +18,7 @@
     <header class="ses-topo">
         <section class="ses-info" aria-label="Informações da sessão">
             <p>Paciente: <strong id="cab-paciente"></strong></p>
+            <p>Código: <strong id="cab-codigo" class="ses-codigo"></strong></p>
             <p>Data: <strong id="cab-data"></strong></p>
             <p id="cab-hora-wrap">Início: <strong id="cab-inicio"></strong></p>
             <p id="cab-fim-wrap" hidden>Fim: <strong id="cab-fim"></strong></p>
@@ -64,13 +67,39 @@
         </table>
     </div>
 
+    {# sessão que ficou aberta porque o programa foi fechado #}
+    <p id="aviso-interrompida" class="ses-aviso-interrompida" role="status" hidden></p>
+
+    {# comentário da terapeuta: opcional, salva sozinho enquanto ela escreve #}
+    <section class="ses-comentario" aria-labelledby="com-titulo">
+        <div class="ses-comentario-topo">
+            <h2 id="com-titulo">Comentários da terapeuta <small>(opcional)</small></h2>
+            <p class="ses-comentario-estado" id="com-estado" role="status" aria-live="polite"></p>
+        </div>
+        <label for="com-texto" class="sr-only">Comentários da terapeuta sobre esta sessão</label>
+        <textarea id="com-texto" rows="4" maxlength="2000" autocomplete="off"></textarea>
+        <div class="ses-comentario-pe">
+            <p id="com-dica"></p>
+            <p id="com-contador" class="ses-contador"></p>
+        </div>
+        <p id="com-erro" class="ses-comentario-erro" role="alert" hidden></p>
+    </section>
+
     <div class="ses-rodape">
         {# só com a sessão encerrada: uma caixinha para cada tipo de fluidez #}
         <section class="ses-fluidez" id="fluidez-final" aria-label="Fluidez das tentativas" hidden>
             <h2>Fluidez</h2>
             <ul id="res-fluidez"></ul>
         </section>
-        <button type="button" id="b-encerrar" class="botao botao-grande ses-encerrar">Encerrar sessão</button>
+        <div class="ses-botoes">
+            {# exportar: aparece quando a sessão já terminou (ou foi aberta do histórico) #}
+            <span id="exportar" class="ses-exportar" hidden>
+                <a id="b-pdf" class="botao botao-claro ses-btn" target="_blank" rel="noopener" href="#">Exportar PDF</a>
+                <a id="b-csv" class="botao botao-claro ses-btn" href="#">Baixar CSV</a>
+            </span>
+            <button type="button" id="b-concluir" class="botao botao-grande ses-encerrar" hidden>Encerrar sessão</button>
+            <button type="button" id="b-encerrar" class="botao botao-grande ses-encerrar">Encerrar sessão</button>
+        </div>
     </div>
 </div>
 
@@ -94,5 +123,5 @@
     </footer>
 </dialog>
 
-<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=3"></script>
+<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=4"></script>
 {% endblock %}

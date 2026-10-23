@@ -1,0 +1,139 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESME · Registro da sessão · {{ r.codigo }}</title>
+    <style>
+        :root { --tinta: #0d0d1a; --espaco: #3434a8; --alien: #8fe884; --gelo: #d6e6ff; }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: var(--tinta); background: #eef2fb; font: 11pt/1.45 "Segoe UI", system-ui, sans-serif; }
+        .folha { max-width: 190mm; margin: 0 auto; padding: 12mm; background: #fff; }
+        h1 { margin: 0; font: 700 20pt "Bahnschrift", "Arial Black", sans-serif; }
+        h1 span { padding: 0 0.25em; color: var(--tinta); background: var(--alien); border: 2px solid var(--tinta); }
+        h2 { margin: 1.4em 0 0.4em; font: 700 12pt "Bahnschrift", "Segoe UI", sans-serif; }
+
+        /* barra de ferramentas: só na tela, não sai no PDF */
+        .barra { position: sticky; top: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; padding: 0.7rem 1rem; background: var(--tinta); color: #fff; }
+        .barra button, .barra a { padding: 0.45rem 0.9rem; font: 700 11pt "Segoe UI", sans-serif; color: var(--tinta); background: var(--alien); border: 2px solid #fff; border-radius: 5px; text-decoration: none; cursor: pointer; }
+        .barra a.claro { background: var(--gelo); }
+        .barra label { display: flex; align-items: center; gap: 0.4rem; }
+
+        .dados { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.2rem 2rem; margin: 1rem 0; }
+        .dados p { margin: 0; }
+        .pseudo { margin: 0.2rem 0 0; font-size: 9.5pt; color: #3a3a55; }
+        .totais { display: flex; flex-wrap: wrap; gap: 0.4rem 2rem; padding: 0.6rem 0.8rem; background: var(--gelo); border: 2px solid var(--tinta); }
+        .totais p { margin: 0; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #b9c3dc; }
+        th { color: #fff; background: var(--tinta); }
+        td small { display: block; font-size: 9pt; color: #3a3a55; }
+
+        .comentario { padding: 0.6rem 0.8rem; white-space: pre-wrap; border: 2px solid var(--tinta); }
+        .ficha { margin: 0 0 0.8rem; padding: 0.5rem 0.8rem; border: 2px solid var(--tinta); break-inside: avoid; }
+        .ficha h3 { margin: 0 0 0.2rem; font: 700 11pt "Bahnschrift", "Segoe UI", sans-serif; }
+        .ficha p { margin: 0 0 0.2rem; }
+        .ficha svg { display: block; width: 100%; height: auto; max-height: 52mm; }
+        .ficha .area { fill: rgba(52, 52, 168, 0.18); }
+        .ficha .linha { fill: none; stroke: var(--espaco); stroke-width: 3; stroke-linejoin: round; }
+        .ficha .eixo { stroke: var(--tinta); stroke-width: 1.5; }
+        .ficha text { font: 11px "Segoe UI", sans-serif; fill: var(--tinta); }
+        .rodape { margin-top: 1.2rem; font-weight: 700; }
+        .anotacoes { height: 40mm; margin-top: 0.5rem; border: 1px dashed #6b7490; }
+
+        @page { size: A4; margin: 12mm; }
+        @media print {
+            body { background: #fff; }
+            .barra { display: none; }
+            .folha { max-width: none; margin: 0; padding: 0; }
+            .fichas { break-before: page; }                       /* as fichas começam numa página nova... */
+            .fichas h2 { margin-top: 0; }
+            .fichas .ficha:nth-of-type(3n):not(:last-of-type) { break-after: page; }   /* ...três por página */
+        }
+    </style>
+</head>
+<body data-imprimir="{% if imprimir %}1{% endif %}">
+    <nav class="barra" aria-label="Opções do relatório">
+        <button type="button" onclick="window.print()">Salvar como PDF / Imprimir</button>
+        <label>
+            <input type="checkbox" id="c-nome" {% if com_nome %}checked{% endif %}>
+            Incluir o nome do paciente
+        </label>
+        <a class="claro" href="{% url 'exportar_csv' pk %}">Baixar CSV</a>
+        <span>Na janela de impressão, escolha o destino <strong>Salvar como PDF</strong>.</span>
+    </nav>
+
+    <main class="folha">
+        <h1><span>ESME</span> Registro da sessão</h1>
+
+        <section class="dados">
+            <p><strong>Paciente:</strong> {% if r.nome %}{{ r.nome }} ({{ r.codigo }}){% else %}{{ r.codigo }}{% endif %}</p>
+            <p><strong>Data da sessão:</strong> {{ r.data|date:"d/m/Y" }}</p>
+            <p><strong>Início:</strong> {{ r.inicio|date:"H:i"|default:"—" }}
+               &nbsp; <strong>Fim:</strong> {{ r.fim|date:"H:i"|default:"—" }}
+               {% if r.duracao_min is not None %}&nbsp; <strong>Duração:</strong> {{ r.duracao_min }} min{% endif %}</p>
+            <p><strong>Fisioterapeuta:</strong> {{ r.fisio }} &nbsp; <strong>Situação:</strong> {{ r.status }}</p>
+        </section>
+        {% if not r.nome %}
+        <p class="pseudo">O paciente é identificado por um código (pseudônimo), sem o nome. Só quem tem o programa e a chave da clínica liga o código ao nome.</p>
+        {% endif %}
+
+        <h2>Resumo</h2>
+        <div class="totais">
+            <p><strong>Tentativas válidas:</strong> {{ r.validas }}</p>
+            <p><strong>Gols:</strong> {{ r.gols }}</p>
+            <p><strong>Melhor alcance:</strong> {{ r.melhor }}</p>
+            <p><strong>Fluidez:</strong>{% for nome_f, qtd in r.fluidez_total %} {{ qtd }} {{ nome_f }}{% if not forloop.last %} ·{% endif %}{% endfor %}</p>
+        </div>
+
+        <h2>Tentativas</h2>
+        <table>
+            <thead><tr><th>Nº</th><th>Resultado</th><th>Alcance</th><th>Fluidez</th></tr></thead>
+            <tbody>
+            {% for t in r.tentativas %}
+                <tr>
+                    <td>{{ t.numero }}</td>
+                    <td>{{ t.resultado }}{% if t.motivo %}<small>{{ t.motivo }}</small>{% endif %}</td>
+                    <td>{{ t.alcance }}</td>
+                    <td>{{ t.fluidez }}{% if t.fluidez_motivo %}<small>{{ t.fluidez_motivo }}</small>{% endif %}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4">Nenhuma tentativa válida.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if r.comentario %}
+        <h2>Comentários da terapeuta</h2>
+        <div class="comentario">{{ r.comentario }}</div>
+        {% endif %}
+
+        {% if r.tentativas %}
+        <div class="fichas">
+        <h2>Curva de velocidade de cada tentativa</h2>
+        {% for t in r.tentativas %}
+        <section class="ficha">
+            <h3>Tentativa {{ t.numero }} · {{ t.resultado }}{% if t.motivo %} ({{ t.motivo }}){% endif %}</h3>
+            <p>Alcance: <strong>{{ t.alcance }}</strong> &nbsp; Fluidez: <strong>{{ t.fluidez }}</strong>{% if t.fluidez_motivo %} ({{ t.fluidez_motivo }}){% endif %}</p>
+            {% if t.curva_svg %}{{ t.curva_svg|safe }}{% else %}<p><em>Sem curva para esta tentativa.</em></p>{% endif %}
+        </section>
+        {% endfor %}
+        </div>
+        {% endif %}
+
+        <p class="rodape">Indicador de apoio; não substitui a avaliação clínica.</p>
+        <p>Anotações:</p>
+        <div class="anotacoes"></div>
+    </main>
+
+    <script>
+        document.getElementById('c-nome').addEventListener('change', function (e) {
+            location.search = e.target.checked ? '?nome=1' : '';
+        });
+        if (document.body.dataset.imprimir === '1') {
+            window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });
+        }
+    </script>
+</body>
+</html>

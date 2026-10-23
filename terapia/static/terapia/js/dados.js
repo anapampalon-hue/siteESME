@@ -23,6 +23,8 @@ export const CONFIG = {
 const URL_ESTADO = '/api/estado/';
 const URL_COMANDO = '/api/comando/';
 const INTERVALO_MS = 500;
+// comandos que só consultam, só guardam o comentário ou mudam de página logo em seguida: não precisam reler o estado
+const SEM_ATUALIZAR = new Set(['sugestoes_nome', 'obter_curva', 'listar_historico', 'salvar_comentario', 'abrir_sessao', 'fechar_leitura', 'preparar_sessao']);
 
 const ouvintes = new Set();
 let estado = null;          // último estado válido
@@ -93,7 +95,8 @@ export function assinar(fn) {
   return () => ouvintes.delete(fn);
 }
 
-/** Comandos: 'preparar_sessao', 'cancelar_espera', 'sugestoes_nome', 'encerrar_sessao', 'anular', 'restaurar', 'obter_curva', 'fechar_leitura'.
+/** Comandos: 'preparar_sessao', 'cancelar_espera', 'sugestoes_nome', 'encerrar_sessao', 'anular', 'restaurar', 'obter_curva', 'fechar_leitura',
+    'salvar_comentario', 'abrir_sessao', 'concluir_interrompida', 'listar_historico'.
     Devolve { ok: true, ... } ou { ok: false, erro: 'codigo' }. */
 export async function enviarComando(nome, args = {}) {
   try {
@@ -104,7 +107,7 @@ export async function enviarComando(nome, args = {}) {
       body: JSON.stringify({ nome, args }),
     });
     const dados = await r.json().catch(() => ({ ok: false, erro: 'pedido_invalido' }));
-    if (dados.ok && nome !== 'sugestoes_nome' && nome !== 'obter_curva') perguntar();       // atualiza a tela sem esperar o próximo ciclo
+    if (dados.ok && !SEM_ATUALIZAR.has(nome)) perguntar();       // atualiza a tela sem esperar o próximo ciclo
     return dados;
   } catch {
     return { ok: false, erro: 'sem_conexao' };

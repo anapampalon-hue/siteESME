@@ -2,8 +2,8 @@
    Regras: a tela NÃO calcula nada e NUNCA usa innerHTML com texto vindo de fora
    (o nome do paciente é digitado pela fisio): só textContent. */
 
-import { T } from './textos.js?v=3';
-import * as dados from './dados.js?v=3';
+import { T } from './textos.js?v=4';
+import * as dados from './dados.js?v=4';
 
 const { iniciar, assinar, enviarComando, obterCurva } = dados;
 
@@ -13,6 +13,10 @@ let estado = null;
 let ultimaVersao = -1;       // ignora estados mais antigos que o já exibido
 let detalheNumero = null;    // tentativa aberta na janela Detalhe
 let detalheChave = null;     // o que a janela Detalhe está mostrando (evita redesenhar à toa)
+const COMENTARIO_MAX = 2000;
+let comTimer = null;         // espera ~0,8 s depois da última letra para salvar
+let comSalvando = false;
+let comIdSessao = null;      // comentário pertence a esta sessão (se mudar de sessão, recarrega o texto)
 
 /* ---------- pequenos ajudantes ---------- */
 
@@ -56,7 +60,7 @@ function renderGuia(e) {
   const s = e.sessao;
   const ultima = s.tentativas[0];                 // a mais recente
   let frase = T.guia.pronto;
-  if (e.tela === 'sessao_encerrada') frase = T.guia.encerrada;
+  if (e.tela === 'sessao_encerrada') frase = s.status === 'interrompida' ? T.guia.interrompida : T.guia.encerrada;
   else if (s.encerrando || (ultima && ultima.estado === 'em_andamento')) frase = T.guia.discoRolando;
   else if (ultima && ultima.estado === 'aguardando_disco') frase = T.guia.aguardandoDisco;
 
@@ -71,7 +75,8 @@ function renderGuia(e) {
   // aviso de sem sinal: uma linha de altura reservada, então nada na página se mexe
   const semMesa = e.equipamentos.mesa === 'sem_sinal';
   const semBatedor = e.equipamentos.batedor === 'sem_sinal';
-  $('guia-aviso').textContent = semMesa && semBatedor ? T.guia.avisoAmbos : semMesa ? T.guia.avisoMesa : semBatedor ? T.guia.avisoBatedor : '';
+  const leitura = e.tela === 'sessao_encerrada';          // sessão já terminada: sinal das placas não importa mais
+  $('guia-aviso').textContent = leitura ? '' : semMesa && semBatedor ? T.guia.avisoAmbos : semMesa ? T.guia.avisoMesa : semBatedor ? T.guia.avisoBatedor : '';
 }
 
 /* ---------- totais ---------- */
@@ -151,15 +156,83 @@ function renderLista(tentativas) {
   }
 }
 
-/* ---------- rodapé: encerrar ---------- */
+/* ---------- comentário da terapeuta (opcional) ---------- */
+
+function atualizarContador() {
+  const n = $('com-texto').value.length;
+  $('com-contador').textContent = T.comentario.contador(n, COMENTARIO_MAX);
+}
+
+function estadoComentario(texto) {
+  $('com-estado').textContent = texto;
+}
+
+function renderComentario(s) {
+  const ta = $('com-texto');
+  const noPrograma = s.comentario || '';
+  $('com-dica').textContent = T.comentario.dica;
+  ta.placeholder = T.comentario.placeholder;
+  const trocouDeSessao = comIdSessao !== s.id;
+  comIdSessao = s.id;
+  // nunca sobrescreve o que ela está digitando: só atualiza se o campo está parado
+  const digitando = document.activeElement === ta || comTimer !== null || comSalvando;
+  if ((trocouDeSessao || !digitando) && ta.value !== noPrograma) ta.value = noPrograma;
+  atualizarContador();
+}
+
+async function salvarComentario() {
+  clearTimeout(comTimer);
+  comTimer = null;
+  if (comSalvando) { comTimer = setTimeout(salvarComentario, 300); return; }   // espera o envio anterior terminar
+  comSalvando = true;
+  estadoComentario(T.comentario.salvando);
+  $('com-erro').hidden = true;
+  const r = await enviarComando('salvar_comentario', { texto: $('com-texto').value });
+  comSalvando = false;
+  if (r.ok) {
+    estadoComentario(comTimer ? T.comentario.salvando : T.comentario.salvo);
+  } else {
+    estadoComentario('');
+    $('com-erro').hidden = false;
+    $('com-erro').textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
+  }
+}
+
+/** Salva já o que estiver pendente (antes de exportar, fechar ou sair da página). */
+async function salvarPendente() {
+  while (comTimer !== null || comSalvando) {
+    if (comTimer !== null && !comSalvando) await salvarComentario();
+    else await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/* ---------- rodapé: encerrar, fechar, exportar ---------- */
+
+const urlDe = (modelo, id) => modelo.replace('/0/', `/${id}/`).replace(/\/0$/, `/${id}`);
+const veioDoHistorico = new URLSearchParams(location.search).get('de') === 'historico';
 
 function renderRodape(e) {
   const s = e.sessao;
   const encerrada = e.tela === 'sessao_encerrada';
+  const interrompida = s.status === 'interrompida';
   const b = $('b-encerrar');
   $('fluidez-final').hidden = !encerrada;         // as caixinhas de fluidez só aparecem com a sessão encerrada
   b.textContent = encerrada ? T.sessao.fechar : s.encerrando ? T.sessao.encerrando : T.sessao.encerrar;
   b.disabled = !!s.encerrando;
+
+  // sessão que ficou aberta (programa fechado no meio): aviso + botão "Encerrar sessão"
+  $('aviso-interrompida').hidden = !interrompida;
+  $('aviso-interrompida').textContent = interrompida ? T.sessao.interrompida : '';
+  $('b-concluir').hidden = !interrompida;
+
+  // exportar: depois que a sessão terminou (ou foi aberta do histórico)
+  $('exportar').hidden = !encerrada;
+  if (encerrada) {
+    $('b-pdf').href = urlDe(app.dataset.urlRelatorio, s.id);
+    $('b-csv').href = urlDe(app.dataset.urlCsv, s.id);
+    $('b-pdf').textContent = T.exportar.pdf;
+    $('b-csv').textContent = T.exportar.csv;
+  }
 }
 
 /* ---------- página inteira ---------- */
@@ -185,11 +258,12 @@ function desenhar(e) {
   ultimaVersao = e.versao;
   estado = e;
 
-  if (e.tela === 'sem_sessao') { location.href = app.dataset.urlInicio; return; }     // abriu /sessao/ sem sessão
+  if (e.tela === 'sem_sessao') { location.href = veioDoHistorico ? app.dataset.urlHistorico : app.dataset.urlInicio; return; }     // abriu /sessao/ sem sessão
   if (e.tela === 'aguardando_mesa') { location.href = app.dataset.urlEspera; return; }
 
   const s = e.sessao;
   $('cab-paciente').textContent = s.paciente;
+  $('cab-codigo').textContent = s.codigo;
   $('cab-data').textContent = dataBR(s.data);
   $('cab-inicio').textContent = horaBR(s.inicio);
   $('cab-fim-wrap').hidden = !s.fim;
@@ -199,6 +273,7 @@ function desenhar(e) {
   renderResumo(s.resumo);
   renderGuia(e);
   renderLista(s.tentativas);
+  renderComentario(s);
   renderRodape(e);
 
   if ($('detalhe').open && detalheNumero !== null) preencherDetalhe();
@@ -333,14 +408,46 @@ function ligarEventos() {
     if (ev.key === 'ArrowRight') irParaVizinha(1);
   });
 
+  const ta = $('com-texto');
+  ta.addEventListener('input', () => {
+    atualizarContador();
+    estadoComentario('');
+    clearTimeout(comTimer);
+    comTimer = setTimeout(salvarComentario, 800);        // salva sozinho quando ela para de digitar
+  });
+  ta.addEventListener('blur', () => { if (comTimer !== null) salvarComentario(); });
+  window.addEventListener('pagehide', () => { if (comTimer !== null) salvarComentario(); });
+
+  // exportar: garante que o último comentário já foi salvo antes de abrir o relatório / baixar o CSV
+  for (const id of ['b-pdf', 'b-csv']) {
+    $(id).addEventListener('click', async (ev) => {
+      if (comTimer === null && !comSalvando) return;     // nada pendente: segue o link normalmente
+      ev.preventDefault();
+      const alvo = $(id);
+      await salvarPendente();
+      if (id === 'b-pdf') window.open(alvo.href, '_blank', 'noopener');
+      else location.href = alvo.href;
+    });
+  }
+
+  $('b-concluir').addEventListener('click', async () => {      // "Encerrar" de uma sessão interrompida
+    $('b-concluir').disabled = true;
+    await salvarPendente();
+    const r = await enviarComando('concluir_interrompida');
+    $('b-concluir').disabled = false;
+    if (!r.ok) mostrarErro(T.erros[r.erro] || T.erroGenerico(r.erro));
+  });
+
   $('b-encerrar').addEventListener('click', async () => {
     if (!estado) return;
-    if (estado.tela === 'sessao_encerrada') {          // "Fechar": sai do modo leitura e volta ao início
+    if (estado.tela === 'sessao_encerrada') {          // "Fechar": sai do modo leitura e volta (ao histórico, se veio de lá)
+      await salvarPendente();
       await enviarComando('fechar_leitura');
-      location.href = app.dataset.urlInicio;
+      location.href = veioDoHistorico ? app.dataset.urlHistorico : app.dataset.urlInicio;
       return;
     }
     $('b-encerrar').disabled = true;
+    await salvarPendente();
     const r = await enviarComando('encerrar_sessao');
     if (!r.ok) {
       $('faixa-erro').hidden = false;
