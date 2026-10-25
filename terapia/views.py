@@ -1,19 +1,22 @@
 import json
+from functools import wraps
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.staticfiles import finders
+from django.db.models import Count
 from django.db.utils import OperationalError, ProgrammingError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.templatetags.static import static
 from django.views.decorators.csrf import ensure_csrf_cookie
-from django.views.decorators.debug import sensitive_variables
+from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 from django.views.decorators.http import require_GET, require_POST
 
-from . import placas, rede
+from . import equipe as equipe_logica, placas, rede
 from .estado import programa
 from .exportar import dados_relatorio, gerar_csv
-from .models import Sessao, eh_gestor
+from .models import Fisioterapeuta, Sessao, eh_gestor
 
 
 def _nome_da_conta(request):
@@ -66,6 +69,126 @@ def sessao(request):
 @ensure_csrf_cookie
 def historico(request):
     return render(request, 'terapia/historico.html')
+
+
+# ---------------------------------------------------------------------------
+# EQUIPE (só a supervisora): lista de terapeutas, novo perfil e o perfil de cada uma
+# ---------------------------------------------------------------------------
+def so_supervisora(view):
+    """Quem não é supervisora volta para o Início (a terapeuta nem vê o botão Equipe)."""
+    @wraps(view)
+    def interna(request, *args, **kwargs):
+        if not eh_gestor(request.user):
+            return redirect('home')
+        return view(request, *args, **kwargs)
+    return login_required(interna)
+
+
+_AVISOS_EQUIPE = {
+    'criado': ('ok', 'Perfil criado.'),
+    'senha': ('ok', 'Senha atualizada.'),
+    'ativado': ('ok', 'Perfil reativado.'),
+    'desativado': ('ok', 'Perfil desativado. A terapeuta não consegue mais entrar, e o histórico dela continua salvo.'),
+    'excluido': ('ok', 'Perfil excluído.'),
+    'em_uso': ('erro', 'Esta terapeuta está com uma sessão aberta agora. Espere a sessão acabar e tente de novo.'),
+    'tem_sessoes': ('erro', 'Esta terapeuta tem sessões salvas. Desative o perfil, ou escolha apagar o perfil junto com as sessões.'),
+    'sem_acao': ('erro', 'Este perfil não pode ser alterado por aqui.'),
+}
+
+
+def _aviso_equipe(request):
+    chave = request.GET.get('aviso')
+    if chave in equipe_logica.ERROS:
+        return {'tipo': 'erro', 'texto': equipe_logica.ERROS[chave]}
+    tipo_texto = _AVISOS_EQUIPE.get(chave)
+    return {'tipo': tipo_texto[0], 'texto': tipo_texto[1]} if tipo_texto else None
+
+
+def _perfil_alvo(request, pk):
+    """Perfil de terapeuta mexível: existe, não é supervisora e não é a própria conta."""
+    fisio = Fisioterapeuta.objects.select_related('user').filter(pk=pk).first()
+    if fisio is None:
+        raise Http404('Perfil não encontrado.')
+    mexivel = not fisio.eh_super_fisio and fisio.user_id != request.user.pk
+    return fisio, mexivel
+
+
+def _volta(pk, aviso):
+    return redirect(f"{reverse('equipe_perfil', args=[pk])}?aviso={aviso}")
+
+
+@so_supervisora
+def equipe(request):
+    fisios = list(Fisioterapeuta.objects.select_related('user').annotate(n_sessoes=Count('sessoes')).order_by('-ativo', 'nome'))
+    return render(request, 'terapia/equipe.html', {'fisios': fisios, 'aviso': _aviso_equipe(request), 'eu': request.user.pk})
+
+
+@so_supervisora
+@sensitive_post_parameters('senha')
+def equipe_novo(request):
+    erro, nome = None, ''
+    if request.method == 'POST':
+        nome = request.POST.get('nome', '')
+        fisio, erro = equipe_logica.criar_perfil(nome, request.POST.get('senha', ''))
+        if fisio:
+            return _volta(fisio.pk, 'criado')
+    return render(request, 'terapia/equipe_novo.html', {
+        'erro': equipe_logica.ERROS.get(erro), 'erro_campo': erro, 'nome': ' '.join(nome.split()),
+        'senha_min': equipe_logica.SENHA_MIN, 'senha_max': equipe_logica.SENHA_MAX,
+    })
+
+
+@so_supervisora
+def equipe_perfil(request, pk):
+    fisio, mexivel = _perfil_alvo(request, pk)
+    if fisio.eh_super_fisio:
+        return redirect('equipe')                                      # supervisoras são geridas pelo /admin
+    mostrar = request.GET.get('mostrar') == '1' and bool(fisio.senha_visivel)
+    resposta = render(request, 'terapia/equipe_perfil.html', {
+        'f': fisio, 'mexivel': mexivel, 'n_sessoes': equipe_logica.total_sessoes(fisio), 'aviso': _aviso_equipe(request),
+        'mostrar': mostrar, 'senha': fisio.senha_visivel if mostrar else '', 'tem_senha': bool(fisio.senha_visivel),
+        'senha_min': equipe_logica.SENHA_MIN, 'senha_max': equipe_logica.SENHA_MAX,
+    })
+    resposta['Cache-Control'] = 'no-store'                            # a senha não fica guardada no navegador
+    return resposta
+
+
+@require_POST
+@so_supervisora
+@sensitive_post_parameters('senha')
+def equipe_senha(request, pk):
+    fisio, mexivel = _perfil_alvo(request, pk)
+    if not mexivel:
+        return _volta(pk, 'sem_acao')
+    erro = equipe_logica.definir_senha(fisio, request.POST.get('senha', ''))
+    return _volta(pk, erro or 'senha')
+
+
+@require_POST
+@so_supervisora
+def equipe_ativo(request, pk):
+    fisio, mexivel = _perfil_alvo(request, pk)
+    if not mexivel:
+        return _volta(pk, 'sem_acao')
+    ativar = request.POST.get('ativo') == '1'
+    if not ativar and programa.fisio_em_uso(fisio.pk):
+        return _volta(pk, 'em_uso')
+    equipe_logica.alternar_ativo(fisio, ativar)
+    return _volta(pk, 'ativado' if ativar else 'desativado')
+
+
+@require_POST
+@so_supervisora
+def equipe_excluir(request, pk):
+    fisio, mexivel = _perfil_alvo(request, pk)
+    if not mexivel:
+        return _volta(pk, 'sem_acao')
+    if programa.fisio_em_uso(fisio.pk):
+        return _volta(pk, 'em_uso')
+    erro = equipe_logica.excluir(fisio, com_sessoes=request.POST.get('modo') == 'tudo')
+    if erro:
+        return _volta(pk, erro)
+    return redirect(f"{reverse('equipe')}?aviso=excluido")
 
 
 def _sessao_para_exportar(request, pk):

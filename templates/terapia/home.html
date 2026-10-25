@@ -19,7 +19,7 @@
             {% endif %}
             <a class="botao botao-claro botao-grande" href="{% url 'historico' %}">Histórico de sessões</a>
             {% if eh_gestor %}
-                <a class="botao botao-claro botao-grande" href="#">Equipe</a>
+                <a class="botao botao-claro botao-grande" href="{% url 'equipe' %}">Equipe</a>
             {% endif %}
 
             <form method="post" action="{% url 'logout' %}">

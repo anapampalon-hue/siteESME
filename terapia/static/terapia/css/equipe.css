@@ -1,0 +1,66 @@
+/* equipe.css — páginas da Equipe (só a supervisora vê). Classes começam com "eq-". Usa as variáveis e o .botao do esme.css. */
+
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+main:has(.eq) { width: min(100%, 1000px); padding-top: 1.2rem; }
+.eq { display: grid; gap: 1.2rem; }
+
+.eq-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem 1.5rem; }
+.eq-topo h1 { margin: 0; font: 700 1.9rem/1.2 var(--fonte-titulo); }
+.eq-topo-acoes { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.eq-topo .botao { width: auto; display: inline-block; text-decoration: none; }
+
+.eq-aviso { margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta); }
+.eq-aviso-ok { color: var(--tinta); background: var(--alien); }
+.eq-aviso-erro { color: #5c0b0b; background: #ffd9d6; border-color: #7a1010; }
+
+/* bolinha de situação: verde = ativa, cinza = desativada */
+.eq-situacao { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+.eq-situacao-grande { margin: 0; font-size: 1.3rem; }
+.eq-ponto { flex: none; width: 1rem; height: 1rem; border-radius: 50%; background: #9aa3b5; border: 2px solid var(--tinta); }
+.eq-ponto-ativo { background: #35c24a; }
+
+/* ---------- lista ---------- */
+.eq-tabela { overflow-x: auto; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta); }
+.eq-tabela table { width: 100%; border-collapse: collapse; }
+.eq-tabela th, .eq-tabela td { padding: 0.75rem 1rem; text-align: left; vertical-align: middle; white-space: nowrap; }
+.eq-tabela thead th { color: var(--branco); background: var(--tinta); font-family: var(--fonte-titulo); }
+.eq-tabela tbody tr + tr > * { border-top: 2px solid rgba(13, 13, 26, 0.2); }
+.eq-tabela tbody tr:hover > * { background: #e8f0ff; }
+.eq-nome { font-weight: 700; }
+.eq-inativa > td { color: #5d6579; }
+.eq-inativa .eq-nome { font-weight: 600; }
+.eq-acoes small { color: #3a3a55; }
+.eq-vazio { padding: 2rem 1.2rem !important; font-weight: 600; white-space: normal !important; }
+.eq-btn { width: auto; display: inline-block; padding: 0.5rem 0.9rem; font-size: 1rem; text-decoration: none; box-shadow: 4px 4px 0 var(--tinta); }
+.eq-btn:hover { box-shadow: 6px 6px 0 var(--tinta); }
+
+/* ---------- perfil ---------- */
+.eq-cartao { display: grid; gap: 0.7rem; padding: 1rem 1.3rem; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta); }
+.eq-cartao h2 { margin: 0; font: 700 1.2rem/1.2 var(--fonte-titulo); }
+.eq-cartao p { margin: 0; }
+.eq-dados { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1.2rem; margin: 0; }
+.eq-dados dt { font-weight: 700; }
+.eq-dados dd { margin: 0; }
+.eq-senha-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
+.eq-senha { padding: 0.15rem 0.7rem; font: 700 1.15rem ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.06em; background: var(--branco); border: 2px solid var(--tinta); border-radius: 6px; }
+.eq-linha-form { display: grid; gap: 0.35rem; }
+.eq-linha-form label { font-weight: 700; }
+.eq-campo-botao { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.eq-campo-botao input { flex: 1 1 14rem; padding: 0.5rem 0.7rem; font: 1rem var(--fonte-texto); color: var(--tinta); background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px; }
+.eq-campo-botao input:focus-visible { outline: 3px solid var(--espaco); outline-offset: 2px; }
+.eq-inline { display: inline-block; }
+.eq-inline .botao { width: auto; }
+.eq-dica { font-size: 0.92rem; color: #3a3a55; }
+
+/* desativar / excluir */
+.eq-perigo { width: auto; display: inline-block; color: #5c0b0b; background: #ffb3a7; border-color: var(--tinta); cursor: pointer; }
+.eq-excluir summary { list-style: none; width: fit-content; }
+.eq-excluir summary::-webkit-details-marker { display: none; }
+.eq-confirma { display: grid; gap: 0.7rem; margin-top: 0.8rem; padding: 0.9rem 1.1rem; background: #fff1ee; border: 3px solid #7a1010; }
+.eq-confirma-botoes { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.eq-confirma .botao { width: auto; }
+
+/* formulário do Novo perfil: o .painel já vem do esme.css */
+.eq-form [aria-invalid="true"] { border-color: #b3261e; }

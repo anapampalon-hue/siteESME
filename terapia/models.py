@@ -63,6 +63,9 @@ class Fisioterapeuta(models.Model):
     papel = models.CharField(max_length=20, choices=Papel.choices, default=Papel.FISIO)
     # "Tirar da equipe" = ativo=False (some do login, mas o histórico dela é mantido)
     ativo = models.BooleanField(default=True)
+    # Senha definida pela supervisora na página Equipe, guardada CRIPTOGRAFADA só para ela poder rever no perfil.
+    # (O login usa o hash do Django; este campo é só para consulta. Vazio = perfil criado pelo /admin.)
+    senha_visivel = CampoCriptografado(blank=True, default='')
 
     class Meta:
         verbose_name = 'fisioterapeuta'

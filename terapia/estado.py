@@ -553,6 +553,16 @@ class Programa:
         with self._lock:
             return {'mesa': self._equip(self.mesa_visto), 'batedor': self._equip(self.batedor_visto)}
 
+    def fisio_em_uso(self, fisio_id):
+        """True se essa fisio tem sessão esperando a mesa, em andamento ou aberta na tela (não dá para desativar/excluir agora)."""
+        with self._lock:
+            if self.espera and self.espera['fisio_id'] == fisio_id:
+                return True
+            for sid in (self.sessao_id, self.leitura_id):
+                if sid and Sessao.objects.filter(pk=sid, fisioterapeuta_id=fisio_id).exists():
+                    return True
+            return False
+
     def sessao_ocupando_placas(self):
         """True se há sessão em andamento ou esperando a mesa: nessa hora não se grava nada nas placas."""
         with self._lock:

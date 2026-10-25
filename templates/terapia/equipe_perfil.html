@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load static esme_extras %}
+{% block title %}{{ f.nome }} · Equipe · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/equipe.css' %}?v=1">
+{% navbar "" %}
+
+<div class="eq">
+    <header class="eq-topo">
+        <h1>{{ f.nome }}</h1>
+        <a class="botao botao-claro" href="{% url 'equipe' %}">Voltar à equipe</a>
+    </header>
+
+    {% if aviso %}<p class="eq-aviso eq-aviso-{{ aviso.tipo }}" role="status">{{ aviso.texto }}</p>{% endif %}
+
+    {# situação: bolinha verde = ativa, cinza = desativada #}
+    <section class="eq-cartao" aria-label="Situação da conta">
+        <p class="eq-situacao eq-situacao-grande"><span class="eq-ponto {% if f.ativo %}eq-ponto-ativo{% endif %}" aria-hidden="true"></span>{% if f.ativo %}Conta ativa{% else %}Conta desativada{% endif %}</p>
+        <dl class="eq-dados">
+            <dt>Sessões salvas</dt><dd>{{ n_sessoes }}</dd>
+            <dt>Último acesso</dt><dd>{% if f.user.last_login %}{{ f.user.last_login|date:"d/m/Y H:i" }}{% else %}ainda não entrou{% endif %}</dd>
+        </dl>
+    </section>
+
+    {# senha: fica escondida; "Mostrar" recarrega a página com a senha à vista #}
+    <section class="eq-cartao" aria-labelledby="t-senha">
+        <h2 id="t-senha">Senha</h2>
+        {% if tem_senha %}
+            <p class="eq-senha-linha">
+                Senha atual: <strong class="eq-senha">{% if mostrar %}{{ senha }}{% else %}••••••••{% endif %}</strong>
+                {% if mostrar %}<a class="botao botao-claro eq-btn" href="{% url 'equipe_perfil' f.pk %}">Ocultar</a>
+                {% else %}<a class="botao botao-claro eq-btn" href="{% url 'equipe_perfil' f.pk %}?mostrar=1">Mostrar</a>{% endif %}
+            </p>
+        {% else %}
+            <p>Este perfil foi criado pelo /admin, então o site não sabe a senha atual. Defina uma nova abaixo para poder consultá-la aqui.</p>
+        {% endif %}
+
+        {% if mexivel %}
+        <form method="post" action="{% url 'equipe_senha' f.pk %}" class="eq-linha-form" autocomplete="off" novalidate>
+            {% csrf_token %}
+            <label for="nova-senha">Definir nova senha ({{ senha_min }} a {{ senha_max }} caracteres)</label>
+            <div class="eq-campo-botao">
+                <input id="nova-senha" name="senha" type="password" minlength="{{ senha_min }}" maxlength="{{ senha_max }}" autocomplete="new-password" required>
+                <button type="submit" class="botao eq-btn">Salvar nova senha</button>
+            </div>
+        </form>
+        {% endif %}
+    </section>
+
+    {% if mexivel %}
+    <section class="eq-cartao eq-perigo-area" aria-labelledby="t-conta">
+        <h2 id="t-conta">Conta</h2>
+
+        <form method="post" action="{% url 'equipe_ativo' f.pk %}" class="eq-inline">
+            {% csrf_token %}
+            <input type="hidden" name="ativo" value="{% if f.ativo %}0{% else %}1{% endif %}">
+            <button type="submit" class="botao botao-claro">{% if f.ativo %}Desativar perfil{% else %}Reativar perfil{% endif %}</button>
+        </form>
+        <p class="eq-dica">{% if f.ativo %}Desativada, ela não consegue entrar e some da lista de login, mas as sessões dela continuam salvas.{% else %}Reativada, ela volta a aparecer na lista de login.{% endif %}</p>
+
+        <details class="eq-excluir">
+            <summary class="botao eq-perigo">Excluir perfil</summary>
+            <div class="eq-confirma">
+                {% if n_sessoes == 0 %}
+                    <p>Excluir o perfil de <strong>{{ f.nome }}</strong>? Não dá para desfazer.</p>
+                    <form method="post" action="{% url 'equipe_excluir' f.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="modo" value="perfil">
+                        <button type="submit" class="botao eq-perigo">Sim, excluir</button>
+                    </form>
+                {% else %}
+                    <p><strong>{{ f.nome }}</strong> tem <strong>{{ n_sessoes }} {% if n_sessoes == 1 %}sessão salva{% else %}sessões salvas{% endif %}</strong>. O que você prefere?</p>
+                    <div class="eq-confirma-botoes">
+                        {% if f.ativo %}
+                        <form method="post" action="{% url 'equipe_ativo' f.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="ativo" value="0">
+                            <button type="submit" class="botao botao-claro">Desativar em vez de excluir</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'equipe_excluir' f.pk %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="modo" value="tudo">
+                            <button type="submit" class="botao eq-perigo">Excluir o perfil e {% if n_sessoes == 1 %}a sessão{% else %}as {{ n_sessoes }} sessões{% endif %}</button>
+                        </form>
+                    </div>
+                    <p class="eq-dica">Excluir junto com as sessões apaga também as tentativas e as curvas, e não dá para desfazer.</p>
+                {% endif %}
+            </div>
+        </details>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

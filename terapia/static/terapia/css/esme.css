@@ -83,7 +83,7 @@ h1 { margin: 0 0 0.5rem; font: 700 2.4rem/1.1 var(--fonte-titulo); }
     width: 100%;
     aspect-ratio: 2.8 / 1;
     margin: 1.5rem 0 2rem;
-    background: var(--espaco) url("../img/logo-esme.jpg") center / cover;
+    background: var(--espaco) url("../img/LayoutESME.png") center / cover;
     border: 3px solid var(--tinta);
     box-shadow: 6px 6px 0 var(--tinta);
 }
