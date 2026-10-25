@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load static esme_extras %}
+{% block title %}Sobre nós · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/sobre.css' %}?v=2">
+{% navbar "sobre" %}
+
+<div class="sobre">
+    <h1>Sobre nós</h1>
+
+    <section class="sobre-bloco" aria-labelledby="sb-quem">
+        <h2 id="sb-quem">Quem somos</h2>
+        <p>Somos o <strong>Grupo 3</strong> da turma T3 de Engenharia Biomédica do Einstein, atualmente no 4º semestre. O E.S.M.E. é nosso projeto de <i>Project Based Learning (PBL)</i>, que busca <strong>unir tecnologia e reabilitação motora</strong> por meio de uma mesa de air hockey adaptada. Com sensores e elementos de gamificação, o <strong>sistema registra os movimentos de pessoas com sequelas nos membros superiores</strong> após um <i>Acidente Vascular Cerebral (AVC)</i>, permitindo que terapeutas <strong>acompanhem quantitativamente sua evolução</strong> ao longo das sessões.</p>
+    </section>
+
+    <section class="sobre-bloco" aria-labelledby="sb-historia">
+        <h2 id="sb-historia">De onde veio o E.S.M.E.</h2>
+        <p>A ideia surgiu da experiência de um dos integrantes do grupo, que costumava brincar com sua mãe, Esmeralda, já idosa e com dificuldades motoras, passando uma bolinha de papel de um lado para o outro sob a mesa. A brincadeira inspirou a adaptação do air hockey à reabilitação motora.</p>
+        <p>O nome <strong>E.S.M.E.</strong> carrega um significado pessoal e científico. Ele é uma <strong>homenagem</strong> a Esmeralda, mãe do integrante cuja experiência inspirou a iniciativa, e também corresponde à sigla <strong>Estimulador SomatoMotor Eletromagnético</strong>, denominação que representa a proposta tecnológica do projeto.</p>
+    </section>
+
+    <section class="sobre-bloco" aria-labelledby="sb-termos">
+        <h2 id="sb-termos">Termos de uso</h2>
+        <p>O E.S.M.E. é um projeto acadêmico. Ao usar o site, você concorda com os pontos abaixo.</p>
+
+        <h3>O que o E.S.M.E. é, e o que não é:</h3>
+        <ul>
+            <li>É uma ferramenta de <strong>apoio</strong> para a terapeuta acompanhar o movimento do paciente com números.</li>
+            <li>Os indicadores <strong>não têm validação clínica</strong> e <strong>não substituem a avaliação da terapeuta</strong>. Quem decide a conduta é sempre o profissional.</li>
+        </ul>
+
+        <h3>Dados do paciente</h3>
+        <ul>
+            <li>O nome do paciente e os resultados são <strong>dados de saúde</strong>, que a <i>Lei Geral de Proteção de Dados (LGPD)</i> considera sensíveis.</li>
+            <li>Tudo fica guardado <strong>só neste computador</strong>. Nada é enviado para a internet, e o site só atende o próprio computador.</li>
+            <li>O nome do paciente é guardado <strong>criptografado</strong>. Quem copiar o arquivo de dados não consegue ler os nomes sem a chave que fica na pasta <em>dados_privados</em>. Sem essa chave, os nomes não podem ser recuperados.</li>
+            <li><strong>Não há cadastro de pacientes.</strong> A terapeuta digita o nome e a data a cada sessão, e a lista do histórico mostra um código da sessão, não o nome.</li>
+            <li>O nome do paciente só entra no relatório em PDF se a terapeuta escolher incluí-lo.</li>
+            <li>Se o <i>Termo de Consentimento Livre e Esclarecido (TCLE)</i> não for marcado ao iniciar a sessão, ela é <strong>anônima</strong>: o site não guarda o nome, a data nem o horário, e a sessão é descartada ao ser fechada.</li>
+        </ul>
+
+        <h3>Contas e acesso</h3>
+        <ul>
+            <li>Cada terapeuta tem o próprio login e vê <strong>somente as sessões dos seus pacientes</strong>.</li>
+            <li>A supervisora vê todas as sessões e cuida da equipe: cria, desativa e exclui perfis, e pode consultar a senha de cada perfil.</li>
+            <li>O paciente não tem acesso ao site.</li>
+            <li>Não compartilhe a sua senha. O site não tem recuperação de senha: quem esquecer procura a supervisora.</li>
+        </ul>
+
+        <h3>Responsabilidades e limites</h3>
+        <ul>
+            <li>A terapeuta não apaga sessões, isso fica com a supervisora. Anular uma tentativa não apaga nada e pode ser desfeito.</li>
+            <li>O ESME <strong>não faz cópias de segurança</strong>. A clínica cuida da pasta do projeto e da pasta <em>dados_privados</em>.</li>
+            <li>Cópias feitas fora do site (PDFs salvos, planilhas, e-mails, pendrives) <strong>não podem ser apagadas pelo ESME</strong>. Quem gerou o arquivo é responsável por ele.</li>
+            <li>A clínica é a responsável pelos dados e define por quanto tempo eles ficam guardados.</li>
+        </ul>
+    </section>
+
+    <section class="sobre-bloco sobre-ler" aria-labelledby="sb-indicadores">
+        <h2 id="sb-indicadores">Como ler os indicadores</h2>
+        <p>O ESME mostra dois indicadores por tentativa: o <strong>alcance</strong> e a <strong>fluidez</strong>. Uma <em>tentativa</em> é uma batida do paciente, desde que a terapeuta pede a nova tentativa até o fim do movimento do disco. Uma <em>sessão</em> é o conjunto de tentativas de um paciente no mesmo atendimento.</p>
+
+        <h3>Alcance: até onde o disco chegou</h3>
+        <p>A mesa tem <strong>8 bobinas</strong> em fila, que percebem a passagem do disco. O alcance é a última bobina que o disco cruzou. Se ele passou por todas e chegou ao fim da mesa, é <strong>gol</strong>.</p>
+        <div class="sobre-tabela" role="region" aria-label="Posição das bobinas" tabindex="0">
+            <table>
+                <thead>
+                    <tr><th scope="col">Bobina</th><th scope="col">1</th><th scope="col">2</th><th scope="col">3</th><th scope="col">4</th><th scope="col">5</th><th scope="col">6</th><th scope="col">7</th><th scope="col">8</th><th scope="col">Gol</th></tr>
+                </thead>
+                <tbody>
+                    <tr><th scope="row">Distância</th><td>20 cm</td><td>27 cm</td><td>34 cm</td><td>41 cm</td><td>48 cm</td><td>55 cm</td><td>62 cm</td><td>69 cm</td><td>76 cm</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="sobre-nota">As distâncias são contadas a partir do ponto de partida do disco.</p>
+        <p>Ele aparece como "<strong>48 cm (bobina 5)</strong>", "<strong>76 cm (gol)</strong>" ou "<strong>nenhum</strong>", quando o disco não chegou à primeira bobina. Quanto maior o número, mais longe o disco foi.</p>
+
+        <h3>Como a tentativa terminou</h3>
+        <ul>
+            <li><strong>Gol:</strong> o disco chegou ao fim da mesa.</li>
+            <li><strong>Parou:</strong> o disco passou por alguma bobina e depois ficou 3 segundos sem avançar.</li>
+            <li><strong>Interrompida:</strong> a tentativa foi cortada, por exemplo porque a nova tentativa foi apertada antes do fim.</li>
+        </ul>
+
+        <h3>Fluidez: o movimento foi contínuo?</h3>
+        <p>A fluidez vem do <strong>batedor</strong>, que tem um sensor de movimento. O ESME desenha a curva da velocidade do batedor durante a batida e conta quantos <strong>picos</strong> ela tem.</p>
+        <div class="sobre-curvas">
+            <figure>
+                <svg viewBox="0 0 240 100" role="img" aria-label="Curva com um único pico, movimento fluido">
+                    <line x1="8" y1="88" x2="232" y2="88" class="eixo"/>
+                    <path d="M8 88 C 60 88, 80 14, 120 14 C 160 14, 180 88, 232 88" class="curva"/>
+                </svg>
+                <figcaption><strong>Um pico só</strong><br>movimento fluido</figcaption>
+            </figure>
+            <figure>
+                <svg viewBox="0 0 240 100" role="img" aria-label="Curva com vários picos, movimento entrecortado">
+                    <line x1="8" y1="88" x2="232" y2="88" class="eixo"/>
+                    <path d="M8 88 L 36 30 L 56 74 L 84 24 L 106 72 L 134 34 L 154 76 L 184 40 L 206 80 L 232 88" class="curva"/>
+                </svg>
+                <figcaption><strong>Vários picos</strong><br>movimento entrecortado</figcaption>
+            </figure>
+        </div>
+        <p class="sobre-nota">Os desenhos acima são ilustrações, não dados reais.</p>
+        <ul>
+            <li><strong>Alta:</strong> um pico só. O paciente empurrou de forma contínua.</li>
+            <li><strong>Média:</strong> dois picos.</li>
+            <li><strong>Baixa:</strong> três ou mais picos. O movimento foi entrecortado, com paradas e arrancadas.</li>
+            <li><strong>Indisponível:</strong> não deu para calcular. O motivo aparece embaixo: "sem dados do batedor" (ele estava desligado ou sem sinal) ou "sem repouso de referência" (o site não viu o batedor parado antes do movimento).</li>
+        </ul>
+        <p>A curva serve para ver a <strong>forma</strong> do movimento e comparar tentativas. Ela não deve ser lida como "quantos metros por segundo", porque a velocidade calculada a partir do sensor é uma estimativa.</p>
+
+        <h3>No resumo da sessão</h3>
+        <p>O topo da tela soma as tentativas <strong>válidas</strong>: quantas foram, quantos gols, o melhor alcance e quantas tiveram fluidez alta, média, baixa ou indisponível. Tentativas <strong>anuladas</strong> ficam em cinza, não entram na soma nem no relatório e podem ser restauradas a qualquer momento.</p>
+
+        <p class="sobre-aviso">Indicador de apoio; não substitui a avaliação clínica.</p>
+    </section>
+</div>
+{% endblock %}

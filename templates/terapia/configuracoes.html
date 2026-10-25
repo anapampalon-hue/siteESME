@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static esme_extras %}
+{% block title %}Configurar mesa e batedor · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/configuracoes.css' %}">
+{% navbar "configuracoes" %}
+
+<div class="cfg" id="app" data-url-inicio="{% url 'home' %}">
+
+    <p id="aviso-js" class="cfg-faixa-erro" role="alert">
+        Os scripts desta página não carregaram. Confira se o configuracoes.js está em terapia/static/terapia/js/ e aperte Ctrl+F5.
+    </p>
+    <p id="faixa-erro" class="cfg-faixa-erro" role="alert" hidden></p>
+
+    <header class="cfg-topo">
+        <h1>Configurar mesa e batedor</h1>
+        <section class="cfg-sinais" aria-label="Sinal da mesa e do batedor">
+            <p class="cfg-sinal" id="ind-mesa" data-estado="sem_sinal"><span class="cfg-ponto" aria-hidden="true"></span>Mesa: <span class="ind-texto">Sem sinal</span></p>
+            <p class="cfg-sinal" id="ind-batedor" data-estado="sem_sinal"><span class="cfg-ponto" aria-hidden="true"></span>Batedor: <span class="ind-texto">Sem sinal</span></p>
+        </section>
+    </header>
+
+    <ol class="cfg-passos" id="passos" aria-label="Passos da configuração">
+        <li data-passo="1">1. Rede</li>
+        <li data-passo="2">2. Placa da mesa</li>
+        <li data-passo="3">3. Placa do batedor</li>
+        <li data-passo="4">4. Conferir</li>
+    </ol>
+
+    {# ================= passo 1: rede ================= #}
+    <section class="cfg-painel" data-painel="1" aria-labelledby="t-passo1">
+        <h2 id="t-passo1">Passo 1: Rede</h2>
+        <p>Digite o nome e a senha do Wi-Fi que as placas vão usar. O notebook precisa estar conectado nesse mesmo Wi-Fi.
+           A senha passa só pela memória do programa: nunca é guardada em arquivo, banco de dados ou registro (log). A única cópia fica dentro das placas.</p>
+
+        <p class="cfg-dica"><strong>Dica:</strong> as placas só conectam em Wi-Fi de <strong>2,4 GHz</strong>.
+           No iPhone, ligue "Maximizar compatibilidade"; no Android, escolha a banda de 2,4 GHz.</p>
+
+        <div class="cfg-campo">
+            <label for="c-ssid">Nome da rede</label>
+            <input id="c-ssid" type="text" maxlength="32" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="cfg-campo">
+            <label for="c-senha">Senha da rede</label>
+            <input id="c-senha" type="password" autocomplete="new-password" spellcheck="false" maxlength="63">
+            <label class="cfg-mostrar"><input id="c-mostrar" type="checkbox"> Mostrar a senha</label>
+            <small>Rede aberta (sem senha)? Deixe em branco.</small>
+        </div>
+        <div class="cfg-campo">
+            <label for="c-ip">IP do notebook nesta rede</label>
+            <select id="c-ip"></select>
+            <small id="c-ip-ajuda"></small>
+        </div>
+
+        <p id="c-aviso-rede" class="cfg-aviso" role="status" hidden></p>
+        <p id="c-erro-1" class="cfg-erro" role="alert" hidden></p>
+        <div class="cfg-acoes">
+            <span></span>
+            <button type="button" class="botao" id="b-continuar-1">Continuar</button>
+        </div>
+    </section>
+
+    {# ================= passos 2 e 3: uma placa de cada vez ================= #}
+    <section class="cfg-painel" data-painel="2" data-tipo="MESA" aria-labelledby="t-passo2" hidden>
+        <h2 id="t-passo2">Passo 2: Placa da mesa</h2>
+        <p>Ligue <strong>só</strong> a placa da mesa ao notebook pelo cabo USB.</p>
+        <p class="cfg-status" role="status"></p>
+        <div class="cfg-linha-botoes">
+            <button type="button" class="botao" data-acao="gravar" disabled>Gravar na placa</button>
+            <button type="button" class="botao botao-claro" data-acao="procurar" hidden>Procurar de novo</button>
+            <button type="button" class="botao botao-claro" data-acao="pular" hidden>Esta placa já está conectada: pular</button>
+        </div>
+        <p class="cfg-resultado" role="status"></p>
+        <div class="cfg-acoes">
+            <button type="button" class="botao botao-claro" data-acao="voltar">Voltar</button>
+            <button type="button" class="botao" data-acao="continuar" disabled>Continuar</button>
+        </div>
+    </section>
+
+    <section class="cfg-painel" data-painel="3" data-tipo="BATEDOR" aria-labelledby="t-passo3" hidden>
+        <h2 id="t-passo3">Passo 3: Placa do batedor</h2>
+        <p>Desligue o cabo da mesa e ligue <strong>só</strong> a placa do batedor ao notebook pelo cabo USB.</p>
+        <p class="cfg-status" role="status"></p>
+        <div class="cfg-linha-botoes">
+            <button type="button" class="botao" data-acao="gravar" disabled>Gravar na placa</button>
+            <button type="button" class="botao botao-claro" data-acao="procurar" hidden>Procurar de novo</button>
+            <button type="button" class="botao botao-claro" data-acao="pular" hidden>Esta placa já está conectada: pular</button>
+        </div>
+        <p class="cfg-resultado" role="status"></p>
+        <div class="cfg-acoes">
+            <button type="button" class="botao botao-claro" data-acao="voltar">Voltar</button>
+            <button type="button" class="botao" data-acao="continuar" disabled>Continuar</button>
+        </div>
+    </section>
+
+    {# ================= passo 4: conferir ================= #}
+    <section class="cfg-painel" data-painel="4" aria-labelledby="t-passo4" hidden>
+        <h2 id="t-passo4">Passo 4: Conferir</h2>
+        <p>Ligue as placas (pode tirar os cabos do notebook) e espere Mesa e Batedor aparecerem como "Conectada" e "Conectado".</p>
+        <ul class="cfg-conferir">
+            <li id="conf-mesa"><strong>Mesa:</strong> <span></span></li>
+            <li id="conf-batedor"><strong>Batedor:</strong> <span></span></li>
+        </ul>
+        <p id="c-conferido" class="cfg-ok" role="status" hidden></p>
+        <div id="c-dicas" class="cfg-dica" hidden>
+            <p><strong>Demorando?</strong> Confira:</p>
+            <ul>
+                <li>O Wi-Fi é de 2,4 GHz (no celular: "Maximizar compatibilidade" ou banda de 2,4 GHz).</li>
+                <li>O notebook está nessa mesma rede e as placas estão ligadas.</li>
+                <li>O firewall do Windows libera as portas UDP 4210 e 4212, inclusive em rede pública.</li>
+            </ul>
+        </div>
+        <p id="c-erro-4" class="cfg-erro" role="alert" hidden></p>
+        <div class="cfg-acoes">
+            <button type="button" class="botao botao-claro" data-acao="voltar">Voltar</button>
+            <button type="button" class="botao" id="b-concluir" disabled>Concluir</button>
+        </div>
+    </section>
+</div>
+
+<script type="module" src="{% static 'terapia/js/configuracoes.js' %}?v=1"></script>
+{% endblock %}
