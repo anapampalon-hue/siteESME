@@ -62,5 +62,9 @@ main:has(.eq) { width: min(100%, 1000px); padding-top: 1.2rem; }
 .eq-confirma-botoes { display: flex; flex-wrap: wrap; gap: 0.8rem; }
 .eq-confirma .botao { width: auto; }
 
-/* formulário do Novo perfil: o .painel já vem do esme.css */
-.eq-form [aria-invalid="true"] { border-color: #b3261e; }
+/* formulário do Novo perfil: o esme.css só estiliza select e senha, então o campo de nome recebe o mesmo estilo aqui */
+.eq-form input[type="text"] {
+    display: block; width: 100%; margin: 0 0 1.2rem; padding: 0.8rem 0.9rem;
+    font: inherit; color: var(--tinta); background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
+.eq-form input[aria-invalid="true"] { border-color: #b3261e; }
