@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static esme_extras %}
+{% block title %}Equipe · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/equipe.css' %}?v=2">
+{% navbar "" %}
+
+<div class="eq">
+    <header class="eq-topo">
+        <h1>Equipe</h1>
+        <div class="eq-topo-acoes">
+            <a class="botao botao-claro" href="{% url 'home' %}">Voltar ao início</a>
+            <a class="botao" href="{% url 'equipe_novo' %}">Novo perfil</a>
+        </div>
+    </header>
+
+    {% if aviso %}<p class="eq-aviso eq-aviso-{{ aviso.tipo }}" role="status">{{ aviso.texto }}</p>{% endif %}
+
+    <div class="eq-tabela">
+        <table>
+            <caption class="sr-only">Terapeutas da equipe</caption>
+            <thead>
+                <tr><th scope="col">Situação</th><th scope="col">Nome</th><th scope="col">Perfil</th><th scope="col">Sessões</th><th scope="col">Último acesso</th><th scope="col">Ações</th></tr>
+            </thead>
+            <tbody>
+            {% for f in fisios %}
+                <tr class="{% if not f.ativo %}eq-inativa{% endif %}">
+                    <td><span class="eq-situacao"><span class="eq-ponto {% if f.ativo %}eq-ponto-ativo{% endif %}" aria-hidden="true"></span>{% if f.ativo %}Ativa{% else %}Desativada{% endif %}</span></td>
+                    <td class="eq-nome">{{ f.nome }}</td>
+                    <td>{% if f.eh_super_fisio %}Supervisora{% else %}Fisioterapeuta{% endif %}</td>
+                    <td>{{ f.n_sessoes }}</td>
+                    <td>{% if f.user.last_login %}{{ f.user.last_login|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+                    <td class="eq-acoes">
+                        {% if f.eh_super_fisio %}<small>gerenciada pelo /admin</small>
+                        {% else %}<a class="botao botao-claro eq-btn" href="{% url 'equipe_perfil' f.pk %}">Abrir perfil</a>{% endif %}
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="eq-vazio">Nenhum perfil ainda. Clique em "Novo perfil".</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

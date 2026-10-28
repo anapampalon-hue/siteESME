@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static esme_extras %}
+{% block title %}Novo perfil · ESME{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'terapia/css/equipe.css' %}?v=2">
+{% navbar "" %}
+
+<form method="post" class="painel eq-form" autocomplete="off" novalidate>
+    {% csrf_token %}
+    <h1>Novo perfil</h1>
+
+    {% if erro %}<p class="erro" role="alert">{{ erro }}</p>{% endif %}
+
+    <label for="nome">Nome da terapeuta</label>
+    <input id="nome" name="nome" type="text" maxlength="150" value="{{ nome }}" required autofocus{% if erro_campo == 'nome_vazio' or erro_campo == 'nome_longo' or erro_campo == 'nome_repetido' %} aria-invalid="true"{% endif %}>
+
+    <label for="senha">Senha ({{ senha_min }} a {{ senha_max }} caracteres)</label>
+    <input id="senha" name="senha" type="password" minlength="{{ senha_min }}" maxlength="{{ senha_max }}" autocomplete="new-password" required{% if erro_campo == 'senha_curta' or erro_campo == 'senha_longa' or erro_campo == 'senha_espacos' %} aria-invalid="true"{% endif %}>
+
+    <div class="acoes-form">
+        <a class="botao botao-claro" href="{% url 'equipe' %}">Cancelar</a>
+        <button type="submit" class="botao">Criar perfil</button>
+    </div>
+</form>
+{% endblock %}
