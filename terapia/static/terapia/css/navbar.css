@@ -1,0 +1,34 @@
+/* navbar.css — a barra Início · Configurações · Sobre nós e o botão "desativado". Usa as variáveis do esme.css. */
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Telas largas: a barra fica no canto superior direito, na linha do logo ESME. */
+.nav-esme { position: absolute; top: 2.4rem; right: 2rem; z-index: 5; margin: 0; }
+.nav-esme ul { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.8rem; margin: 0; padding: 0; list-style: none; }
+.nav-esme a {
+    position: relative; display: inline-block; padding: 0.45rem 1.1rem; font: 700 0.98rem var(--fonte-titulo); text-decoration: none;
+    color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); border-radius: 12px; box-shadow: 4px 4px 0 var(--tinta);
+    transition: transform 0.12s, box-shadow 0.12s;
+}
+.nav-esme a:hover { transform: translate(-1px, -1px); box-shadow: 6px 6px 0 var(--tinta); }
+.nav-esme a:focus-visible { outline: 3px solid var(--branco); outline-offset: 3px; }
+.nav-esme a[aria-current="page"] { background: var(--alien); }
+
+/* sinal na aba Configurações: falta configurar as placas */
+.nav-sinal {
+    position: absolute; top: -0.65rem; right: -0.65rem; display: grid; place-items: center; width: 1.4rem; height: 1.4rem;
+    font: 700 0.9rem/1 var(--fonte-titulo); color: var(--tinta); background: #ffe58f; border: 3px solid var(--tinta); border-radius: 50%;
+}
+
+/* botão que ainda não pode ser usado (ex.: Nova sessão antes de configurar): mais escuro e sem resposta */
+.botao-desativado, .botao[aria-disabled="true"] {
+    filter: brightness(0.55) saturate(0.6); cursor: default; pointer-events: none; transform: none !important; user-select: none;
+}
+
+/* Telas estreitas (celular): volta para o meio, em cima do conteúdo, para não bater no logo. */
+@media (max-width: 900px) {
+    .nav-esme { position: static; margin: 0 0 1.6rem; }
+    .nav-esme ul { justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) { .nav-esme a { transition: none; } }
