@@ -1,0 +1,13 @@
+{% load static %}
+<link rel="stylesheet" href="{% static 'terapia/css/navbar.css' %}">
+<nav class="nav-esme" aria-label="Menu principal">
+    <ul>
+        <li><a href="{% url 'home' %}"{% if ativa == 'inicio' %} aria-current="page"{% endif %}>Início</a></li>
+        <li>
+            <a href="{% url 'configuracoes' %}"{% if ativa == 'configuracoes' %} aria-current="page"{% endif %}>
+                Configurações{% if falta_configurar %}<span class="nav-sinal" aria-hidden="true">!</span><span class="sr-only"> (falta configurar as placas)</span>{% endif %}
+            </a>
+        </li>
+        <li><a href="{% url 'sobre' %}"{% if ativa == 'sobre' %} aria-current="page"{% endif %}>Sobre nós</a></li>
+    </ul>
+</nav>

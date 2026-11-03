@@ -1,0 +1,57 @@
+/* historico.css — SÓ a página do Histórico. Classes começam com "his-". Usa as variáveis e o .botao do esme.css. */
+
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+main:has(.his) { width: min(100%, 1180px); padding-top: 1.2rem; }
+.his { display: grid; gap: 1.1rem; }
+
+.his-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem 1.5rem; }
+.his-topo h1 { margin: 0; font: 700 1.9rem/1.2 var(--fonte-titulo); }
+.his-voltar { width: auto; }
+
+.his-faixa-erro {
+    margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: #5c0b0b; background: #ffd9d6;
+    border: 3px solid #7a1010; box-shadow: 5px 5px 0 var(--tinta);
+}
+
+/* ---------- filtros ---------- */
+.his-filtros {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.8rem 1.4rem; padding: 0.9rem 1.2rem;
+    color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+.his-campo { display: grid; gap: 0.25rem; flex: 1 1 16rem; }
+.his-campo-data { flex: 0 1 11rem; }
+.his-campo label { font-weight: 700; }
+.his-campo input {
+    width: 100%; padding: 0.5rem 0.7rem; font: 1rem var(--fonte-texto); color: var(--tinta);
+    background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
+.his-campo input:focus-visible { outline: 3px solid var(--espaco); outline-offset: 2px; }
+.his-campo input[aria-invalid="true"] { border-color: #b3261e; }
+.his-nomes { display: flex; align-items: center; gap: 0.5rem; padding-bottom: 0.55rem; font-weight: 700; cursor: pointer; }
+.his-nomes input { width: 1.2rem; height: 1.2rem; accent-color: var(--espaco); }
+.his-btn { padding: 0.5rem 0.9rem; font-size: 1rem; box-shadow: 4px 4px 0 var(--tinta); }
+.his-btn:hover { box-shadow: 6px 6px 0 var(--tinta); }
+.his-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: 4px 4px 0 var(--tinta); }
+
+.his-dica { min-height: 1.3em; margin: 0; font-size: 0.95rem; color: var(--branco); }
+.his-dica-erro { font-weight: 700; color: #ffd9d6; }
+
+/* ---------- tabela ---------- */
+.his-tabela { overflow-x: auto; color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta); }
+.his-tabela table { width: 100%; border-collapse: collapse; }
+.his-tabela th, .his-tabela td { padding: 0.75rem 1rem; text-align: left; vertical-align: middle; }
+.his-tabela thead th { color: var(--branco); background: var(--tinta); font-family: var(--fonte-titulo); white-space: nowrap; }
+.his-tabela td { white-space: nowrap; }
+.his-tabela tbody tr + tr > * { border-top: 2px solid rgba(13, 13, 26, 0.2); }
+.his-tabela tbody tr:hover > * { background: #e8f0ff; }
+.his-tabela small { display: block; font-size: 0.85rem; color: #3a3a55; }
+.his-codigo { font: 700 1rem ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.04em; }
+.his-nome { font-weight: 700; }
+.his-estado { display: inline-block; padding: 0.1rem 0.6rem; font-size: 0.9rem; font-weight: 700; border: 2px solid var(--tinta); border-radius: 999px; }
+.his-estado-concluida { background: var(--alien); }
+.his-estado-interrompida { background: #ffe58f; }
+.his-acoes { white-space: nowrap; }
+.his-acoes .botao { display: inline-block; width: auto; margin-right: 0.6rem; text-decoration: none; }
+.his-vazio { margin: 0; padding: 2rem 1.2rem; font-weight: 600; color: var(--tinta); background: var(--gelo); }
