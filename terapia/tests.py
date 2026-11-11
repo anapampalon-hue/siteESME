@@ -1,69 +1,253 @@
-/* textos.js — TODOS os textos que mudam na tela ficam aqui, em português.
-   O programa (back) só envia códigos ("baixa", "sem_dados_batedor"); a tela escolhe a frase. */
+"""
+tests.py — testes da avaliação das tentativas, do MRC e da exclusão de sessões.
 
-export const T = {
-  mesa:    { ok: 'Conectada', sem_sinal: 'Sem sinal' },
-  batedor: { ok: 'Conectado', sem_sinal: 'Sem sinal' },
-  // frase curta ao lado de "Sem sinal" (seção 7.1 do escopo do Sandro)
-  avisoSemSinal: {
-    mesa: 'nenhuma tentativa será registrada',
-    batedor: 'a fluidez não será registrada',
-  },
-  semConexao: 'Sem conexão com o programa. Tentando reconectar…',
+Rodar:  python manage.py test terapia
+(cada teste usa um banco temporário: o db.sqlite3 de vocês não é tocado)
+"""
+import json
+import os
 
-  fluidez: { alta: 'alta', media: 'média', baixa: 'baixa', indisponivel: 'indisponível' },
-  motivoFluidez: {
-    sem_dados_batedor: 'sem dados do batedor',
-    sem_repouso: 'sem repouso de referência',
-    nao_calculada: 'cálculo ainda não disponível',
-  },
+from cryptography.fernet import Fernet
+from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test import TestCase, override_settings
+from django.utils import timezone
 
-  resultado: { gol: 'Gol', parou: 'Parou', interrompida: 'Interrompida' },
-  motivoTentativa: {
-    nova_tentativa: 'nova tentativa apertada antes do fim',
-    nova_sessao: 'a mesa foi zerada durante a tentativa',
-    mesa_reiniciou: 'a mesa reiniciou durante a tentativa',
-  },
+# chaves só para os testes (a pasta dados_privados/ não é criada nem lida)
+os.environ.setdefault('ESME_CHAVE', Fernet.generate_key().decode())
+os.environ.setdefault('ESME_CHAVE_PSEUDO', 'chave-de-teste-nao-usar-em-producao')
 
-  alcanceNenhum: 'nenhum',
-  anulada: 'anulada',
-  tentativa: {
-    aguardando_disco: 'Aguardando o disco…',
-    calculando: 'Calculando fluidez…',
-    emAndamento: (alcance) => `Em andamento, alcance até agora: ${alcance}`,
-  },
-  semTentativas: 'Nenhuma tentativa ainda. Aperte nova tentativa na mesa e peça ao paciente que bata no disco.',
+from . import estado, views  # noqa: E402
+from .models import Feedback, Fisioterapeuta, MrcItem, Sessao, Tentativa  # noqa: E402
 
-  acoes: { detalhes: 'Detalhes', anular: 'Anular', restaurar: 'Restaurar' },
+User = get_user_model()
 
-  detalhe: {
-    calculando: 'Calculando…',
-    legenda: 'Um pico só: movimento fluido. Vários picos: movimento entrecortado.',
-    semCurva: {
-      sem_dados_batedor: 'Sem dados do batedor nesta tentativa.',
-      sem_repouso: 'Sem repouso de referência para calcular a velocidade.',
-    },
-  },
 
-  novaSessao: {
-    erroNome: 'Digite o nome do paciente.',
-    erroData: 'Digite uma data válida no formato dd/mm/aaaa.',
-  },
+def _fisio(username, papel=Fisioterapeuta.Papel.FISIO):
+    u = User.objects.create_user(username, password='x')
+    return u, Fisioterapeuta.objects.create(user=u, nome=username, papel=papel)
 
-  espera: {
-    instrucao: 'Aperte e segure o botão "nova sessão" da mesa até o placar mostrar -- --.',
-    ajuda: 'Se esta tela não avançar, confira se a Mesa está "Conectada" no topo e segure o botão de novo.',
-  },
 
-  // códigos de erro que o programa devolve -> frase (código sem frase cai em "Algo deu errado")
-  erros: {
-    paciente_vazio: 'Digite o nome do paciente.',
-    paciente_longo: 'O nome do paciente é longo demais (máximo de 150 letras).',
-    data_invalida: 'Digite uma data válida no formato dd/mm/aaaa.',
-    sessao_aberta: 'Há uma sessão aberta. Encerre-a antes de começar outra.',
-    sem_perfil: 'Esta conta não é de fisioterapeuta, então não pode abrir sessões.',
-    sem_permissao: 'Você não tem permissão para isso. Entre de novo na sua conta.',
-    sem_conexao: 'Sem conexão com o programa.',
-  },
-  erroGenerico: (codigo) => `Algo deu errado (código ${codigo}).`,
-};
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])   # deixa os testes rápidos
+class Base(TestCase):
+    def setUp(self):
+        self.prog = estado.Programa()
+        self.prog.calculo_em_segundo_plano = False
+        self.u1, self.f1 = _fisio('ana')
+        self.u2, self.f2 = _fisio('bia')
+        self.sup, self.fsup = _fisio('sup', Fisioterapeuta.Papel.SUPER_FISIO)
+        self.s = Sessao.objects.create(fisioterapeuta=self.f1, paciente_nome='Maria Silva', status=Sessao.Status.EM_ANDAMENTO)
+        self.prog.sessao_id = self.s.pk
+
+    def tentativa(self, numero, resultado='parou', anulada=False, concluida=True):
+        return Tentativa.objects.create(
+            sessao=self.s, numero=numero, bobinas_atingidas=2 if resultado != 'interrompida' else 0,
+            resultado=resultado if concluida else '', anulada=anulada,
+            finalizada_em=timezone.now() if concluida else None)
+
+
+class AvaliacaoTests(Base):
+    def test_salva_qualidade_dor_e_nota(self):
+        self.tentativa(1)
+        self.assertTrue(self.prog.salvar_avaliacao(self.u1, 1, {'qualidade': 4})['ok'])
+        self.assertTrue(self.prog.salvar_avaliacao(self.u1, 1, {'dor': 1, 'nota': 'cansou no fim'})['ok'])
+        fb = Feedback.objects.get(tentativa__numero=1)
+        self.assertEqual((fb.qualidade, fb.dor, fb.nota), (4, 1, 'cansou no fim'))
+
+    def test_nota_fica_criptografada_no_banco(self):
+        self.tentativa(1)
+        self.prog.salvar_avaliacao(self.u1, 1, {'nota': 'texto secreto'})
+        with connection.cursor() as c:
+            c.execute('SELECT nota FROM terapia_feedback')
+            bruto = c.fetchone()[0]
+        self.assertNotIn('secreto', bruto)
+        self.assertTrue(bruto.startswith('gAAAA'))
+
+    def test_qualidade_pode_voltar_ao_branco(self):
+        self.tentativa(1)
+        self.prog.salvar_avaliacao(self.u1, 1, {'qualidade': 3})
+        self.prog.salvar_avaliacao(self.u1, 1, {'qualidade': None})
+        self.assertIsNone(Feedback.objects.get().qualidade)
+
+    def test_valores_invalidos_sao_recusados(self):
+        self.tentativa(1)
+        for campos in ({'qualidade': 6}, {'qualidade': -1}, {'dor': 3}, {'dor': True}, {'qualidade': '4'}, {'nota': 5}):
+            self.assertFalse(self.prog.salvar_avaliacao(self.u1, 1, campos)['ok'], campos)
+        self.assertEqual(self.prog.salvar_avaliacao(self.u1, 1, {'nota': 'x' * (estado.NOTA_MAX + 1)})['erro'], 'nota_longa')
+        self.assertFalse(Feedback.objects.exists())
+
+    def test_interrompida_nao_e_avaliada(self):
+        self.tentativa(1, 'interrompida')
+        self.assertEqual(self.prog.salvar_avaliacao(self.u1, 1, {'dor': 0})['erro'], 'tentativa_interrompida')
+
+    def test_outra_terapeuta_nao_avalia(self):
+        self.tentativa(1)
+        self.assertEqual(self.prog.salvar_avaliacao(self.u2, 1, {'dor': 0})['erro'], 'sem_permissao')
+
+    def test_snapshot_traz_avaliacao_e_pendencias(self):
+        self.tentativa(1)
+        self.tentativa(2)
+        self.tentativa(3, 'interrompida')
+        self.tentativa(4, anulada=True)
+        snap = self.prog.snapshot(self.u1)['sessao']
+        self.assertEqual(snap['avaliacoes_pendentes'], 2)          # só 1 e 2 contam
+        self.prog.salvar_avaliacao(self.u1, 1, {'dor': 0})
+        sessao = self.prog.snapshot(self.u1)['sessao']
+        self.assertEqual(sessao['avaliacoes_pendentes'], 1)
+        t1 = next(t for t in sessao['tentativas'] if t['numero'] == 1)
+        self.assertEqual(t1['avaliacao'], {'qualidade': None, 'dor': 0, 'nota': ''})
+
+
+class EncerrarTests(Base):
+    def test_encerrar_recusa_enquanto_falta_dor(self):
+        self.tentativa(1)
+        self.tentativa(2)
+        r = self.prog.encerrar_sessao(self.u1)
+        self.assertEqual((r['ok'], r['erro'], r['pendentes']), (False, 'avaliacoes_pendentes', 2))
+        self.prog.salvar_avaliacao(self.u1, 1, {'dor': 0})
+        self.assertEqual(self.prog.encerrar_sessao(self.u1)['pendentes'], 1)
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.status, Sessao.Status.EM_ANDAMENTO)
+
+    def test_encerra_quando_a_dor_esta_preenchida(self):
+        self.tentativa(1)
+        self.tentativa(2, 'interrompida')       # não conta
+        self.tentativa(3, anulada=True)         # não conta
+        self.prog.salvar_avaliacao(self.u1, 1, {'dor': 2})      # estrelas ficam em branco: tudo bem
+        self.assertTrue(self.prog.encerrar_sessao(self.u1)['ok'])
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.status, Sessao.Status.CONCLUIDA)
+
+    def test_anular_tira_a_obrigacao_e_restaurar_devolve(self):
+        self.tentativa(1)
+        self.assertFalse(self.prog.encerrar_sessao(self.u1)['ok'])
+        self.prog.anular(self.u1, 1)
+        self.assertEqual(self.prog.snapshot(self.u1)['sessao']['avaliacoes_pendentes'], 0)
+        self.prog.restaurar(self.u1, 1)
+        self.assertEqual(self.prog.snapshot(self.u1)['sessao']['avaliacoes_pendentes'], 1)
+
+    def test_sessao_interrompida_tambem_exige_a_dor(self):
+        self.tentativa(1)
+        self.prog.sessao_id, self.prog.leitura_id = None, self.s.pk
+        self.assertEqual(self.prog.concluir_interrompida(self.u1)['erro'], 'avaliacoes_pendentes')
+        self.prog.salvar_avaliacao(self.u1, 1, {'dor': 1})
+        self.assertTrue(self.prog.concluir_interrompida(self.u1)['ok'])
+
+    def test_encerrando_com_tentativa_rolando_continua_aberta_se_faltar_dor(self):
+        self.tentativa(1)
+        self.prog.salvar_avaliacao(self.u1, 1, {'dor': 0})
+        aberta = Tentativa.objects.create(sessao=self.s, numero=2, bobinas_atingidas=3)
+        self.assertTrue(self.prog.encerrar_sessao(self.u1)['ok'])
+        self.assertTrue(self.prog.encerrando)
+        self.prog._fechar_aberta(Tentativa.Resultado.PAROU, '')           # o disco parou: a nº 2 ainda não tem dor
+        self.assertFalse(self.prog.encerrando)
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.status, Sessao.Status.EM_ANDAMENTO)
+        aberta.refresh_from_db()
+        self.assertEqual(aberta.resultado, 'parou')
+
+
+class MrcTests(Base):
+    def test_salva_e_devolve(self):
+        r = self.prog.salvar_mrc(self.u1, [{'grupo': 'Ombro', 'grau': 4, 'nota': 'ok'}, {'grupo': 'Punho', 'grau': 0}])
+        self.assertTrue(r['ok'])
+        m = self.prog.snapshot(self.u1)['sessao']['mrc']
+        self.assertEqual([(x['grupo'], x['grau'], x['nota']) for x in m], [('Ombro', 4, 'ok'), ('Punho', 0, '')])
+
+    def test_maximo_de_cinco_e_linha_vazia_ignorada(self):
+        seis = [{'grupo': f'g{i}', 'grau': 1} for i in range(6)]
+        self.assertEqual(self.prog.salvar_mrc(self.u1, seis)['erro'], 'mrc_invalido')
+        self.assertTrue(self.prog.salvar_mrc(self.u1, [{'grupo': '', 'grau': None, 'nota': ''}, {'grupo': 'Ombro', 'grau': 3}])['ok'])
+        self.assertEqual(MrcItem.objects.count(), 1)
+
+    def test_grau_invalido_e_nota_criptografada(self):
+        self.assertFalse(self.prog.salvar_mrc(self.u1, [{'grupo': 'Ombro', 'grau': 6}])['ok'])
+        self.prog.salvar_mrc(self.u1, [{'grupo': 'Ombro', 'grau': 3, 'nota': 'segredo'}])
+        with connection.cursor() as c:
+            c.execute('SELECT nota FROM terapia_mrcitem')
+            self.assertNotIn('segredo', c.fetchone()[0])
+
+    def test_outra_terapeuta_nao_mexe(self):
+        self.assertEqual(self.prog.salvar_mrc(self.u2, [{'grupo': 'Ombro', 'grau': 3}])['erro'], 'sem_permissao')
+
+    def test_substitui_a_lista_anterior(self):
+        self.prog.salvar_mrc(self.u1, [{'grupo': 'A', 'grau': 1}, {'grupo': 'B', 'grau': 2}])
+        self.prog.salvar_mrc(self.u1, [{'grupo': 'C', 'grau': 3}])
+        self.assertEqual(list(MrcItem.objects.values_list('grupo', flat=True)), ['C'])
+
+
+class ExcluirTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.prog.sessao_id = None
+        self.s.status = Sessao.Status.CONCLUIDA
+        self.s.save()
+        self.tentativa(1)
+        Feedback.objects.create(tentativa=self.s.tentativas.get(), dor=0)
+        MrcItem.objects.create(sessao=self.s, ordem=1, grupo='Ombro', grau=3)
+
+    def test_fisio_comum_nao_exclui(self):
+        self.assertEqual(self.prog.excluir_sessao(self.u1, self.s.pk)['erro'], 'sem_permissao')
+        self.assertTrue(Sessao.objects.filter(pk=self.s.pk).exists())
+
+    def test_supervisora_exclui_de_vez_com_tudo_que_depende(self):
+        self.assertTrue(self.prog.excluir_sessao(self.sup, self.s.pk)['ok'])
+        self.assertFalse(Sessao.objects.exists())
+        self.assertEqual((Tentativa.objects.count(), Feedback.objects.count(), MrcItem.objects.count()), (0, 0, 0))
+
+    def test_superadmin_tambem_exclui(self):
+        admin = User.objects.create_superuser('root', password='x')
+        self.assertTrue(self.prog.excluir_sessao(admin, self.s.pk)['ok'])
+
+    def test_nao_exclui_a_sessao_em_andamento(self):
+        self.prog.sessao_id = self.s.pk
+        self.assertEqual(self.prog.excluir_sessao(self.sup, self.s.pk)['erro'], 'sessao_aberta')
+
+    def test_inexistente(self):
+        self.assertEqual(self.prog.excluir_sessao(self.sup, 9999)['erro'], 'nao_encontrado')
+
+    def test_historico_diz_quem_pode_excluir(self):
+        self.assertFalse(self.prog.listar_historico(self.u1)['pode_excluir'])
+        self.assertTrue(self.prog.listar_historico(self.sup)['pode_excluir'])
+
+    def test_pela_url_a_fisio_comum_tambem_e_recusada(self):
+        """O teste que importa: mesmo mandando o pedido na mão, a conta comum não exclui."""
+        antigo = views.programa
+        views.programa = self.prog
+        try:
+            corpo = json.dumps({'nome': 'excluir_sessao', 'args': {'id': self.s.pk}})
+            self.client.force_login(self.u1)
+            r = self.client.post('/api/comando/', data=corpo, content_type='application/json')
+            self.assertEqual(r.json(), {'ok': False, 'erro': 'sem_permissao'})
+            self.assertTrue(Sessao.objects.filter(pk=self.s.pk).exists())
+            self.client.force_login(self.sup)
+            r = self.client.post('/api/comando/', data=corpo, content_type='application/json')
+            self.assertTrue(r.json()['ok'])
+        finally:
+            views.programa = antigo
+
+
+class ExportarTests(Base):
+    def test_relatorio_e_csv_levam_avaliacao_e_mrc(self):
+        from .exportar import dados_relatorio, gerar_csv
+        self.tentativa(1)
+        self.tentativa(2)
+        self.tentativa(3, resultado='interrompida')
+        self.prog.salvar_avaliacao(self.u1, 1, {'qualidade': 4, 'dor': 2, 'nota': 'dor no fim'})
+        self.prog.salvar_avaliacao(self.u1, 2, {'dor': 0})            # sem estrelas: ficam as 5 vazias
+        self.prog.salvar_mrc(self.u1, [{'grupo': 'Quadríceps', 'grau': 4, 'nota': 'ok'}])
+        r = dados_relatorio(self.s)
+        t1, t2, t3 = r['tentativas']
+        self.assertEqual((t1['aval']['estrelas'], t1['aval']['dor'], t1['aval']['nota']), ('★★★★☆', '2 · pronunciada', 'dor no fim'))
+        self.assertEqual((t2['aval']['estrelas'], t2['aval']['dor']), ('☆☆☆☆☆', '0 · nenhuma'))
+        self.assertFalse(t3['aval']['avaliavel'])
+        self.assertEqual(r['mrc'], [{'grupo': 'Quadríceps', 'grau': 4, 'nota': 'ok'}])
+        csv_txt = gerar_csv(self.s)
+        self.assertIn('qualidade_movimento;dor', csv_txt)
+        self.assertNotIn('dor no fim', csv_txt)                      # anotação livre nunca vai no CSV
+        self.assertNotIn('Quadríceps', csv_txt)
+
+    def test_mrc_vazio_nao_aparece(self):
+        from .exportar import dados_relatorio
+        self.prog.salvar_mrc(self.u1, [{'grupo': '', 'grau': None, 'nota': ''}])
+        self.assertEqual(dados_relatorio(self.s)['mrc'], [])

@@ -27,6 +27,7 @@
 
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; border-bottom: 1px solid #b9c3dc; }
+        th.col-dor, td.col-dor { min-width: 34mm; white-space: nowrap; }
         th { color: #fff; background: var(--tinta); }
         td small { display: block; font-size: 9pt; color: #3a3a55; }
 
@@ -40,7 +41,9 @@
         .ficha .eixo { stroke: var(--tinta); stroke-width: 1.5; }
         .ficha text { font: 11px "Segoe UI", sans-serif; fill: var(--tinta); }
         .rodape { margin-top: 1.2rem; font-weight: 700; }
-        .anotacoes { height: 40mm; margin-top: 0.5rem; border: 1px dashed #6b7490; }
+        .estrelas { font-size: 13pt; letter-spacing: 0.05em; color: #b07d00; white-space: nowrap; }
+        .nota-tent { margin: 0.3rem 0 0; padding: 0.35rem 0.6rem; white-space: pre-wrap; background: #f3f6fd; border-left: 4px solid var(--espaco); }
+        .mrc-tab td:nth-child(2) { white-space: nowrap; }
 
         @page { size: A4; margin: 12mm; }
         @media print {
@@ -99,7 +102,7 @@
 
         <h2>Tentativas</h2>
         <table>
-            <thead><tr><th>Nº</th><th>Resultado</th><th>Alcance</th><th>Fluidez</th></tr></thead>
+            <thead><tr><th>Nº</th><th>Resultado</th><th>Alcance</th><th>Fluidez</th><th>Qualidade do movimento</th><th class="col-dor">Dor</th></tr></thead>
             <tbody>
             {% for t in r.tentativas %}
                 <tr>
@@ -107,16 +110,31 @@
                     <td>{{ t.resultado }}{% if t.motivo %}<small>{{ t.motivo }}</small>{% endif %}</td>
                     <td>{{ t.alcance }}</td>
                     <td>{{ t.fluidez }}{% if t.fluidez_motivo %}<small>{{ t.fluidez_motivo }}</small>{% endif %}</td>
+                    <td>{% if t.aval.avaliavel %}<span class="estrelas" aria-label="{% if t.aval.qualidade %}{{ t.aval.qualidade }} de 5 estrelas{% else %}sem nota{% endif %}">{{ t.aval.estrelas }}</span>{% else %}—{% endif %}</td>
+                    <td class="col-dor">{% if t.aval.avaliavel %}{{ t.aval.dor }}{% else %}—{% endif %}</td>
                 </tr>
             {% empty %}
-                <tr><td colspan="4">Nenhuma tentativa válida.</td></tr>
+                <tr><td colspan="6">Nenhuma tentativa válida.</td></tr>
             {% endfor %}
             </tbody>
         </table>
 
         {% if r.comentario %}
-        <h2>Comentários da terapeuta</h2>
+        <h2>Comentários</h2>
         <div class="comentario">{{ r.comentario }}</div>
+        {% endif %}
+
+        {% if r.mrc %}
+        <h2>Força muscular (MRC)</h2>
+        <p class="pseudo">Escala MRC de 0 (nenhuma contração) a 5 (força normal).</p>
+        <table class="mrc-tab">
+            <thead><tr><th>Grupo muscular</th><th>Grau (0 a 5)</th><th>Anotação</th></tr></thead>
+            <tbody>
+            {% for m in r.mrc %}
+                <tr><td>{{ m.grupo|default:"—" }}</td><td>{% if m.grau is not None %}{{ m.grau }}{% else %}—{% endif %}</td><td style="white-space: pre-wrap">{{ m.nota }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
         {% endif %}
 
         {% if r.tentativas %}
@@ -126,15 +144,15 @@
         <section class="ficha">
             <h3>Tentativa {{ t.numero }} · {{ t.resultado }}{% if t.motivo %} ({{ t.motivo }}){% endif %}</h3>
             <p>Alcance: <strong>{{ t.alcance }}</strong> &nbsp; Fluidez: <strong>{{ t.fluidez }}</strong>{% if t.fluidez_motivo %} ({{ t.fluidez_motivo }}){% endif %}</p>
+            {% if t.aval.avaliavel %}<p>Qualidade do movimento: <span class="estrelas">{{ t.aval.estrelas }}</span> &nbsp; Dor: <strong>{{ t.aval.dor }}</strong></p>{% endif %}
             {% if t.curva_svg %}{{ t.curva_svg|safe }}{% else %}<p><em>Sem curva para esta tentativa.</em></p>{% endif %}
+            {% if t.aval.nota %}<p class="nota-tent"><strong>Anotação:</strong> {{ t.aval.nota }}</p>{% endif %}
         </section>
         {% endfor %}
         </div>
         {% endif %}
 
         <p class="rodape">Indicador de apoio; não substitui a avaliação clínica.</p>
-        <p>Anotações:</p>
-        <div class="anotacoes"></div>
     </main>
 
     <script>

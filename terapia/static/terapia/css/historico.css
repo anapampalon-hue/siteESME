@@ -8,7 +8,7 @@ main:has(.his) { width: min(100%, 1180px); padding-top: 1.2rem; }
 
 .his-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem 1.5rem; }
 .his-topo h1 { margin: 0; font: 700 1.9rem/1.2 var(--fonte-titulo); }
-.his-voltar { width: auto; }
+.his-topo .titulo-linha h1 { margin: 0; }
 
 .his-faixa-erro {
     margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: #5c0b0b; background: #ffd9d6;
@@ -52,6 +52,18 @@ main:has(.his) { width: min(100%, 1180px); padding-top: 1.2rem; }
 .his-estado { display: inline-block; padding: 0.1rem 0.6rem; font-size: 0.9rem; font-weight: 700; border: 2px solid var(--tinta); border-radius: 999px; }
 .his-estado-concluida { background: var(--alien); }
 .his-estado-interrompida { background: #ffe58f; }
-.his-acoes { white-space: nowrap; }
-.his-acoes .botao { display: inline-block; width: auto; margin-right: 0.6rem; text-decoration: none; }
+.his-tabela td.his-acoes { white-space: normal; }
+.his-acoes .botao { display: inline-block; width: auto; margin: 0.15rem 0.6rem 0.35rem 0; text-decoration: none; }
+.his-perigo { color: #5c0b0b; background: #ffb3a7; }
+.his-acoes .his-perigo { margin-right: 0; }
+dialog.his-dialogo {
+    width: min(92vw, 520px); padding: 1.2rem 1.4rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid #7a1010; box-shadow: 8px 8px 0 var(--tinta);
+}
+dialog.his-dialogo::backdrop { background: rgba(13, 13, 26, 0.72); }
+dialog.his-dialogo h2 { margin: 0 0 0.6rem; font: 700 1.4rem/1.2 var(--fonte-titulo); }
+dialog.his-dialogo p { margin: 0 0 0.8rem; line-height: 1.45; }
+.his-erro-dialogo { color: #7a1010; }
+.his-dialogo-botoes { display: flex; justify-content: flex-end; gap: 0.8rem; }
+.his-dialogo-botoes .botao { width: auto; }
 .his-vazio { margin: 0; padding: 2rem 1.2rem; font-weight: 600; color: var(--tinta); background: var(--gelo); }

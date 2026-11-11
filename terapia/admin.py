@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import EventoBobina, Feedback, Fisioterapeuta, Sessao, Tentativa
+from .models import EventoBobina, Feedback, Fisioterapeuta, MrcItem, Sessao, Tentativa
 
 
 class TentativaInline(admin.TabularInline):
@@ -43,3 +43,4 @@ class TentativaAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Feedback)
+admin.site.register(MrcItem)

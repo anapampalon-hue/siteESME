@@ -338,6 +338,19 @@ def api_comando(request):
             r = programa.abrir_sessao(u, int(args.get('id')))
         except (TypeError, ValueError):
             return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
+    elif nome == 'salvar_avaliacao':
+        try:
+            numero = int(args.get('numero'))
+        except (TypeError, ValueError):
+            return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
+        r = programa.salvar_avaliacao(u, numero, {k: args[k] for k in ('qualidade', 'dor', 'nota') if k in args})
+    elif nome == 'salvar_mrc':
+        r = programa.salvar_mrc(u, args.get('itens'))
+    elif nome == 'excluir_sessao':
+        try:
+            r = programa.excluir_sessao(u, int(args.get('id')))
+        except (TypeError, ValueError):
+            return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
     elif nome == 'concluir_interrompida':
         r = programa.concluir_interrompida(u)
     elif nome == 'listar_historico':

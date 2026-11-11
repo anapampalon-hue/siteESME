@@ -24,7 +24,7 @@ const URL_ESTADO = '/api/estado/';
 const URL_COMANDO = '/api/comando/';
 const INTERVALO_MS = 500;
 // comandos que só consultam, só guardam o comentário ou mudam de página logo em seguida: não precisam reler o estado
-const SEM_ATUALIZAR = new Set(['sugestoes_nome', 'obter_curva', 'listar_historico', 'salvar_comentario', 'abrir_sessao', 'fechar_leitura', 'preparar_sessao', 'config_estado', 'config_placas', 'config_gravar', 'config_concluir']);
+const SEM_ATUALIZAR = new Set(['sugestoes_nome', 'obter_curva', 'listar_historico', 'salvar_comentario', 'salvar_mrc', 'excluir_sessao', 'abrir_sessao', 'fechar_leitura', 'preparar_sessao', 'config_estado', 'config_placas', 'config_gravar', 'config_concluir']);
 
 const ouvintes = new Set();
 let estado = null;          // último estado válido
@@ -96,7 +96,7 @@ export function assinar(fn) {
 }
 
 /** Comandos: 'preparar_sessao', 'cancelar_espera', 'sugestoes_nome', 'encerrar_sessao', 'anular', 'restaurar', 'obter_curva', 'fechar_leitura',
-    'salvar_comentario', 'abrir_sessao', 'concluir_interrompida', 'listar_historico'.
+    'salvar_comentario', 'salvar_mrc', 'excluir_sessao', 'abrir_sessao', 'concluir_interrompida', 'listar_historico'.
     Devolve { ok: true, ... } ou { ok: false, erro: 'codigo' }. */
 export async function enviarComando(nome, args = {}) {
   try {

@@ -2,8 +2,8 @@
    Regras: a tela NÃO calcula nada e NUNCA usa innerHTML com texto vindo de fora
    (o nome do paciente é digitado pela fisio): só textContent. */
 
-import { T } from './textos.js?v=4';
-import * as dados from './dados.js?v=4';
+import { T } from './textos.js?v=5';
+import * as dados from './dados.js?v=5';
 
 const { iniciar, assinar, enviarComando, obterCurva } = dados;
 
@@ -17,6 +17,14 @@ const COMENTARIO_MAX = 2000;
 let comTimer = null;         // espera ~0,8 s depois da última letra para salvar
 let comSalvando = false;
 let comIdSessao = null;      // comentário pertence a esta sessão (se mudar de sessão, recarrega o texto)
+const NOTA_MAX = 1000;
+let notaNumero = null;       // tentativa a que a anotação digitada pertence (vale mesmo se a janela mudar de tentativa)
+let notaTimer = null;
+let notaSalvando = false;
+let mrcIdSessao = null;      // o MRC da tela pertence a esta sessão
+let mrcLinhas = [];          // [{grupo, grau, nota}]: depois da 1ª carga, a tela é a fonte da verdade
+let mrcTimer = null;
+let mrcSalvando = false;
 
 /* ---------- pequenos ajudantes ---------- */
 
@@ -107,6 +115,16 @@ function celulaFluidez(t) {
   return td;
 }
 
+/** "Avaliar" (tentativa concluída que entra na avaliação) ou "Detalhes" (só a curva). O "!" marca a dor sem preencher. */
+function botaoAvaliar(t) {
+  const b = botao(t.avaliavel ? T.acoes.avaliar : T.acoes.detalhes, () => abrirDetalhe(t.numero), t.numero);
+  if (t.avaliavel && t.avaliacao.dor === null) {
+    b.append(el('span', { className: 'ses-pendente', textContent: '!', title: T.avaliacao.pendente }));
+    b.setAttribute('aria-label', `${T.acoes.avaliar}: ${T.avaliacao.pendente}`);
+  }
+  return b;
+}
+
 function linha(t) {
   const emCurso = t.estado === 'aguardando_disco' || t.estado === 'em_andamento';
   const tr = el('tr', { className: t.anulada ? 'ses-anulada' : emCurso ? 'ses-ativa' : '' });
@@ -131,7 +149,7 @@ function linha(t) {
   if (t.anulada) {
     tdAcoes.append(botao(T.acoes.restaurar, () => enviarComando('restaurar', { numero: t.numero }), t.numero));
   } else {
-    tdAcoes.append(botao(T.acoes.detalhes, () => abrirDetalhe(t.numero), t.numero));
+    tdAcoes.append(botaoAvaliar(t));
     tdAcoes.append(botao(T.acoes.anular, () => enviarComando('anular', { numero: t.numero }), t.numero));
   }
 
@@ -204,10 +222,13 @@ async function salvarPendente() {
     if (comTimer !== null && !comSalvando) await salvarComentario();
     else await new Promise((r) => setTimeout(r, 50));
   }
+  await descarregarNota();
+  await descarregarMrc();
 }
 
 /* ---------- rodapé: encerrar, fechar, exportar ---------- */
 
+const pendentesAgora = () => (estado && estado.sessao ? estado.sessao.avaliacoes_pendentes || 0 : 0);
 const urlDe = (modelo, id) => modelo.replace('/0/', `/${id}/`).replace(/\/0$/, `/${id}`);
 const veioDoHistorico = new URLSearchParams(location.search).get('de') === 'historico';
 
@@ -217,13 +238,18 @@ function renderRodape(e) {
   const interrompida = s.status === 'interrompida';
   const b = $('b-encerrar');
   $('fluidez-final').hidden = !encerrada;         // as caixinhas de fluidez só aparecem com a sessão encerrada
+  // tentativas concluídas sem a dor preenchida: travam o "Encerrar" (sessão ao vivo ou interrompida que ainda vai ser concluída)
+  const pend = (encerrada && !interrompida) ? 0 : (s.avaliacoes_pendentes || 0);
   b.textContent = encerrada ? T.sessao.fechar : s.encerrando ? T.sessao.encerrando : T.sessao.encerrar;
-  b.disabled = !!s.encerrando;
+  b.disabled = !!s.encerrando || (!encerrada && pend > 0);
+  $('aviso-pendencias').hidden = pend === 0;
+  $('aviso-pendencias').textContent = pend ? T.pendencias(pend) : '';
 
   // sessão que ficou aberta (programa fechado no meio): aviso + botão "Encerrar sessão"
   $('aviso-interrompida').hidden = !interrompida;
   $('aviso-interrompida').textContent = interrompida ? T.sessao.interrompida : '';
   $('b-concluir').hidden = !interrompida;
+  $('b-concluir').disabled = pend > 0;
 
   // sessão anônima: lembra que ela não fica salva (e avisa antes de "Fechar" apagar tudo)
   $('aviso-anonima').hidden = !s.anonima;
@@ -281,6 +307,7 @@ function desenhar(e) {
   renderGuia(e);
   renderLista(s.tentativas);
   renderComentario(s);
+  renderMrc(s);
   renderRodape(e);
 
   if ($('detalhe').open && detalheNumero !== null) preencherDetalhe();
@@ -352,6 +379,8 @@ async function preencherDetalhe() {
     if (t.fluidez.nivel === 'indisponivel') dFlu.append(el('small', { textContent: T.motivoFluidez[t.fluidez.motivo] }));
   }
 
+  aplicarAvaliacao(t);
+
   const numeros = numerosComDetalhe();
   const i = numeros.indexOf(t.numero);
   $('det-anterior').disabled = i <= 0;
@@ -364,8 +393,6 @@ async function preencherDetalhe() {
   detalheChave = chave;
 
   const area = $('det-curva');
-  const legenda = $('det-legenda');
-  legenda.textContent = '';
   if (t.estado === 'calculando') {
     area.replaceChildren(avisoNoQuadro(T.detalhe.calculando, true));
   } else if (t.fluidez.nivel === 'indisponivel') {
@@ -375,7 +402,6 @@ async function preencherDetalhe() {
     const curva = await obterCurva(t.numero);
     if (detalheNumero !== t.numero || detalheChave !== chave) return;   // o usuário já trocou de tentativa
     area.replaceChildren(curva ? desenharCurva(curva, t.numero) : avisoNoQuadro(T.detalhe.semGrafico, false));
-    legenda.textContent = curva ? T.detalhe.legenda : '';
   }
 }
 
@@ -386,10 +412,13 @@ function numerosComDetalhe() {
     .sort((a, b) => a - b);
 }
 
-function irParaVizinha(passo) {
+async function irParaVizinha(passo) {
   const numeros = numerosComDetalhe();
   const novo = numeros[numeros.indexOf(detalheNumero) + passo];
-  if (novo !== undefined) { detalheNumero = novo; preencherDetalhe(); }
+  if (novo === undefined) return;
+  await descarregarNota();                 // a anotação digitada fica na tentativa certa
+  detalheNumero = novo;
+  preencherDetalhe();
 }
 
 function abrirDetalhe(numero) {
@@ -399,11 +428,256 @@ function abrirDetalhe(numero) {
   if (!$('detalhe').open) $('detalhe').showModal();
 }
 
+/* ---------- avaliação da tentativa (janela "Avaliar") ---------- */
+
+const tentativaAberta = () => (estado && estado.sessao ? estado.sessao.tentativas.find((x) => x.numero === detalheNumero) : null);
+
+function pintarEstrelas(q) {
+  document.querySelectorAll('#aval-estrelas .ses-estrela').forEach((b) => {
+    const n = Number(b.dataset.valor);
+    b.classList.toggle('cheia', q !== null && n <= q);
+    b.setAttribute('aria-checked', q === n ? 'true' : 'false');
+  });
+}
+
+function pintarDor(d) {
+  document.querySelectorAll('#aval-bolinhas input').forEach((i) => { i.checked = d !== null && Number(i.value) === d; });
+}
+
+function atualizarContadorNota() {
+  $('aval-contador').textContent = T.avaliacao.notaContador($('aval-nota').value.length, NOTA_MAX);
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+/** Estrela gordinha e arredondada (um "adesivo" dourado com brilho); a cor muda pela classe .cheia */
+function desenharEstrela() {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 32 32');
+  svg.setAttribute('aria-hidden', 'true');
+  const corpo = document.createElementNS(SVG_NS, 'path');
+  corpo.setAttribute('class', 'corpo');
+  corpo.setAttribute('d', 'M16 2.8l3.7 8.1 8.8 1-6.6 5.9 1.9 8.7L16 22l-7.8 4.5 1.9-8.7-6.6-5.9 8.8-1z');
+  const brilho = document.createElementNS(SVG_NS, 'path');
+  brilho.setAttribute('class', 'brilho');
+  brilho.setAttribute('d', 'M12.6 11.2l2.2-4.3');
+  svg.append(corpo, brilho);
+  return svg;
+}
+
+/** Mostra a avaliação da tentativa aberta. Nunca sobrescreve a anotação que está sendo digitada. */
+function aplicarAvaliacao(t) {
+  const avaliavel = !!t.avaliavel;
+  $('det-aval').hidden = !avaliavel;
+  $('aval-sem').hidden = avaliavel;
+  if (!avaliavel) {
+    $('aval-sem').textContent = t.anulada ? T.avaliacao.semAnulada : T.avaliacao.semInterrompida;
+    return;
+  }
+  const a = t.avaliacao;
+  $('aval-q-rotulo').textContent = T.avaliacao.qualidade;
+  $('aval-q-ajuda').textContent = T.avaliacao.qualidadeAjuda;
+  $('aval-dor-rotulo').textContent = T.avaliacao.dor;
+  $('aval-dor-ajuda').textContent = a.dor === null ? T.avaliacao.dorObrigatoria : '';
+  $('aval-dor').classList.toggle('pendente', a.dor === null);
+  $('aval-nota-rotulo').textContent = T.avaliacao.nota;
+  $('aval-dica').textContent = T.avaliacao.notaDica;
+  $('aval-nota').placeholder = T.avaliacao.notaPlaceholder;
+  pintarEstrelas(a.qualidade);
+  pintarDor(a.dor);
+  const ta = $('aval-nota');
+  const digitando = document.activeElement === ta || notaTimer !== null || notaSalvando;
+  if ((notaNumero !== t.numero || !digitando) && ta.value !== a.nota) ta.value = a.nota;
+  if (!digitando) notaNumero = t.numero;
+  atualizarContadorNota();
+}
+
+async function enviarAvaliacao(campos) {
+  const numero = detalheNumero;
+  if (numero === null) return;
+  $('aval-erro').hidden = true;
+  const r = await enviarComando('salvar_avaliacao', { numero, ...campos });
+  if (!r.ok) {
+    $('aval-erro').hidden = false;
+    $('aval-erro').textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
+  }
+}
+
+async function salvarNota() {
+  clearTimeout(notaTimer);
+  notaTimer = null;
+  if (notaSalvando) { notaTimer = setTimeout(salvarNota, 300); return; }
+  const numero = notaNumero;
+  if (numero === null) return;
+  notaSalvando = true;
+  $('aval-estado').textContent = T.avaliacao.salvando;
+  const r = await enviarComando('salvar_avaliacao', { numero, nota: $('aval-nota').value });
+  notaSalvando = false;
+  if (r.ok) {
+    $('aval-estado').textContent = notaTimer ? T.avaliacao.salvando : T.avaliacao.salvo;
+  } else {
+    $('aval-estado').textContent = '';
+    $('aval-erro').hidden = false;
+    $('aval-erro').textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
+  }
+}
+
+/** Salva já a anotação pendente (ao trocar de tentativa, fechar a janela, exportar ou encerrar). */
+async function descarregarNota() {
+  while (notaTimer !== null || notaSalvando) {
+    if (notaTimer !== null && !notaSalvando) await salvarNota();
+    else await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+function ligarAvaliacao() {
+  // estrelas: 5 botões; clicar na mesma estrela de novo apaga a nota (sem nota = estrelas vazias)
+  const caixa = $('aval-estrelas');
+  for (let n = 1; n <= 5; n += 1) {
+    const b = el('button', { type: 'button', className: 'ses-estrela' }, desenharEstrela());
+    b.dataset.valor = n;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-label', T.avaliacao.estrela(n));
+    b.addEventListener('click', () => {
+      const t = tentativaAberta();
+      if (!t) return;
+      const atual = t.avaliacao.qualidade;
+      const novo = atual === n ? null : n;
+      t.avaliacao.qualidade = novo;               // a tela responde na hora; o programa confirma em seguida
+      pintarEstrelas(novo);
+      document.querySelectorAll('#aval-estrelas .cheia').forEach((b2, k) => {      // as estrelas "pulam" uma depois da outra
+        b2.style.animationDelay = `${k * 70}ms`;
+        b2.classList.remove('pop');
+        void b2.offsetWidth;
+        b2.classList.add('pop');
+      });
+      enviarAvaliacao({ qualidade: novo });
+    });
+    caixa.append(b);
+  }
+  // dor: três bolinhas com texto (0 = nenhuma, 1 = alguma, 2 = pronunciada)
+  T.avaliacao.dorOpcoes.forEach((texto, valor) => {
+    const radio = el('input', { type: 'radio', name: 'aval-dor', value: valor });
+    radio.addEventListener('change', () => {
+      const t = tentativaAberta();
+      if (!t) return;
+      t.avaliacao.dor = valor;
+      $('aval-dor').classList.remove('pendente');
+      $('aval-dor-ajuda').textContent = '';
+      enviarAvaliacao({ dor: valor });
+    });
+    $('aval-bolinhas').append(el('label', { className: `ses-bolinha ses-bolinha-${valor}` }, radio, el('span', { className: 'ses-bolinha-ponto' }), el('span', { textContent: texto })));
+  });
+  const ta = $('aval-nota');
+  ta.addEventListener('input', () => {
+    if (notaTimer === null && !notaSalvando) notaNumero = detalheNumero;      // a anotação é desta tentativa
+    $('aval-estado').textContent = '';
+    atualizarContadorNota();
+    clearTimeout(notaTimer);
+    notaTimer = setTimeout(salvarNota, 800);
+  });
+  ta.addEventListener('blur', () => { if (notaTimer !== null) salvarNota(); });
+}
+
+/* ---------- MRC (força muscular): opcional, até 5 critérios ---------- */
+
+function mrcEstado(txt) { $('mrc-estado').textContent = txt; }
+
+function agendarMrc() {
+  mrcEstado('');
+  clearTimeout(mrcTimer);
+  mrcTimer = setTimeout(salvarMrc, 700);
+}
+
+async function salvarMrc() {
+  clearTimeout(mrcTimer);
+  mrcTimer = null;
+  if (mrcSalvando) { mrcTimer = setTimeout(salvarMrc, 300); return; }
+  mrcSalvando = true;
+  mrcEstado(T.mrc.salvando);
+  $('mrc-erro').hidden = true;
+  const r = await enviarComando('salvar_mrc', { itens: mrcLinhas.map((l) => ({ grupo: l.grupo, grau: l.grau, nota: l.nota })) });
+  mrcSalvando = false;
+  if (r.ok) {
+    mrcEstado(mrcTimer ? T.mrc.salvando : T.mrc.salvo);
+  } else {
+    mrcEstado('');
+    $('mrc-erro').hidden = false;
+    $('mrc-erro').textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
+  }
+}
+
+async function descarregarMrc() {
+  while (mrcTimer !== null || mrcSalvando) {
+    if (mrcTimer !== null && !mrcSalvando) await salvarMrc();
+    else await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+function desenharMrc() {
+  const max = estado && estado.sessao ? estado.sessao.mrc_max : 5;
+  const caixa = $('mrc-linhas');
+  caixa.replaceChildren(...mrcLinhas.map((l, i) => {
+    const grupo = el('input', { type: 'text', className: 'ses-mrc-grupo', maxLength: 60, placeholder: T.mrc.grupoPlaceholder, value: l.grupo, autocomplete: 'off' });
+    grupo.setAttribute('aria-label', `${T.mrc.grupo} ${i + 1}`);
+    grupo.addEventListener('input', () => { l.grupo = grupo.value; agendarMrc(); });
+
+    const graus = el('div', { className: 'ses-mrc-graus' });
+    graus.setAttribute('role', 'radiogroup');
+    graus.setAttribute('aria-label', `${T.mrc.grau} ${i + 1}`);
+    for (let g = 0; g <= 5; g += 1) {
+      const radio = el('input', { type: 'radio', name: `mrc-grau-${i}`, value: g, checked: l.grau === g });
+      radio.addEventListener('click', () => {        // clicar no grau já marcado desmarca
+        if (l.grau === g) { l.grau = null; radio.checked = false; } else { l.grau = g; }
+        agendarMrc();
+      });
+      graus.append(el('label', { className: 'ses-grau' }, radio, el('span', { textContent: g })));
+    }
+
+    const nota = el('textarea', { className: 'ses-mrc-nota', rows: 2, maxLength: 1000, placeholder: T.mrc.notaPlaceholder, value: l.nota });
+    nota.setAttribute('aria-label', `${T.mrc.nota} ${i + 1}`);
+    nota.addEventListener('input', () => { l.nota = nota.value; agendarMrc(); });
+
+    const linha = el('div', { className: 'ses-mrc-linha' }, grupo, graus, nota);
+    if (mrcLinhas.length > 1) {
+      linha.append(el('button', {
+        type: 'button', className: 'botao botao-claro ses-btn ses-mrc-remover', textContent: T.mrc.remover,
+        onclick: () => { mrcLinhas.splice(i, 1); desenharMrc(); agendarMrc(); },
+      }));
+    }
+    return linha;
+  }));
+  const cheio = mrcLinhas.length >= max;
+  $('mrc-adicionar').hidden = cheio;
+  $('mrc-dica').textContent = cheio ? T.mrc.limite(max) : T.mrc.dica;
+}
+
+function renderMrc(s) {
+  $('mrc-escala').textContent = T.mrc.escala;
+  $('mrc-adicionar').textContent = T.mrc.adicionar;
+  if (mrcIdSessao !== s.id) {            // sessão nova: carrega o que já está salvo; depois disso a tela manda
+    mrcIdSessao = s.id;
+    mrcLinhas = s.mrc.map((m) => ({ grupo: m.grupo, grau: m.grau, nota: m.nota }));
+    if (mrcLinhas.length === 0) mrcLinhas.push({ grupo: '', grau: null, nota: '' });
+    desenharMrc();
+  }
+}
+
+function ligarMrc() {
+  $('mrc-adicionar').addEventListener('click', () => {
+    mrcLinhas.push({ grupo: '', grau: null, nota: '' });
+    desenharMrc();
+    const campos = document.querySelectorAll('.ses-mrc-grupo');
+    if (campos.length) campos[campos.length - 1].focus();
+  });
+}
+
 /* ---------- eventos da página ---------- */
 
 function ligarEventos() {
   $('det-fechar').addEventListener('click', () => $('detalhe').close());
-  $('detalhe').addEventListener('close', () => { detalheNumero = null; detalheChave = null; });
+  $('detalhe').addEventListener('close', () => { descarregarNota(); detalheNumero = null; detalheChave = null; });
+  ligarAvaliacao();
+  ligarMrc();
   $('det-anterior').addEventListener('click', () => irParaVizinha(-1));
   $('det-proxima').addEventListener('click', () => irParaVizinha(1));
   $('det-anular').addEventListener('click', () => {
@@ -423,7 +697,11 @@ function ligarEventos() {
     comTimer = setTimeout(salvarComentario, 800);        // salva sozinho quando ela para de digitar
   });
   ta.addEventListener('blur', () => { if (comTimer !== null) salvarComentario(); });
-  window.addEventListener('pagehide', () => { if (comTimer !== null) salvarComentario(); });
+  window.addEventListener('pagehide', () => {
+    if (comTimer !== null) salvarComentario();
+    if (notaTimer !== null) descarregarNota();
+    if (mrcTimer !== null) descarregarMrc();
+  });
 
   // exportar: garante que o último comentário já foi salvo antes de abrir o relatório / baixar o CSV
   for (const id of ['b-pdf', 'b-csv']) {
@@ -441,7 +719,7 @@ function ligarEventos() {
     $('b-concluir').disabled = true;
     await salvarPendente();
     const r = await enviarComando('concluir_interrompida');
-    $('b-concluir').disabled = false;
+    $('b-concluir').disabled = pendentesAgora() > 0;
     if (!r.ok) mostrarErro(T.erros[r.erro] || T.erroGenerico(r.erro));
   });
 
@@ -459,7 +737,7 @@ function ligarEventos() {
     if (!r.ok) {
       $('faixa-erro').hidden = false;
       $('faixa-erro').textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
-      $('b-encerrar').disabled = false;
+      $('b-encerrar').disabled = pendentesAgora() > 0;
     }
   });
 }

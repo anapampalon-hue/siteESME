@@ -2,8 +2,8 @@
    PSEUDONIMIZAÇÃO: a lista mostra só o CÓDIGO do paciente (P-XXXXXX). O nome só chega do programa se a terapeuta
    marcar "Mostrar nomes". Texto vindo de fora entra sempre por textContent (nunca innerHTML). */
 
-import { T } from './textos.js?v=4';
-import { enviarComando } from './dados.js?v=4';
+import { T } from './textos.js?v=5';
+import { enviarComando } from './dados.js?v=5';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -74,7 +74,39 @@ async function abrir(id) {
   location.href = `${app.dataset.urlSessao}?de=historico`;
 }
 
-function linha(s, comFisio, comNome) {
+/* ---------- excluir (só a supervisora; o servidor confere de novo) ---------- */
+let excluindoId = null;
+
+function pedirExclusao(s) {
+  excluindoId = s.id;
+  $('excluir-titulo').textContent = T.historico.excluirTitulo;
+  $('excluir-texto').textContent = T.historico.excluirTexto(s.codigo, dataBR(s.data));
+  $('excluir-cancelar').textContent = T.historico.excluirCancelar;
+  $('excluir-confirmar').textContent = T.historico.excluirConfirmar;
+  $('excluir-confirmar').disabled = false;
+  $('excluir-erro').hidden = true;
+  $('excluir-dialogo').showModal();
+  $('excluir-cancelar').focus();                 // o foco começa no "Cancelar": excluir exige um gesto deliberado
+}
+
+async function confirmarExclusao() {
+  if (excluindoId === null) return;
+  $('excluir-confirmar').disabled = true;
+  $('excluir-confirmar').textContent = T.historico.excluindo;
+  const r = await enviarComando('excluir_sessao', { id: excluindoId });
+  if (!r.ok) {
+    $('excluir-confirmar').disabled = false;
+    $('excluir-confirmar').textContent = T.historico.excluirConfirmar;
+    $('excluir-erro').hidden = false;
+    $('excluir-erro').textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
+    return;
+  }
+  excluindoId = null;
+  $('excluir-dialogo').close();
+  carregar();
+}
+
+function linha(s, comFisio, comNome, podeExcluir) {
   const tr = el('tr');
   tr.append(el('td', { textContent: `${dataBR(s.data)}${s.inicio ? ` · ${horaBR(s.inicio)}` : ''}` }));
   if (comNome) tr.append(el('td', { className: 'his-nome', textContent: s.nome || '' }));
@@ -90,14 +122,18 @@ function linha(s, comFisio, comNome) {
   const abrirBtn = el('button', { type: 'button', className: 'botao botao-claro his-btn', textContent: T.historico.abrir, onclick: () => abrir(s.id) });
   const pdf = el('a', { className: 'botao botao-claro his-btn', textContent: T.historico.pdf, target: '_blank', rel: 'noopener', href: urlCom(app.dataset.urlRelatorio, s.id) });
   const csv = el('a', { className: 'botao botao-claro his-btn', textContent: T.historico.csv, href: urlCom(app.dataset.urlCsv, s.id) });
-  tr.append(el('td', { className: 'his-acoes' }, abrirBtn, pdf, csv));
+  const acoes = el('td', { className: 'his-acoes' }, abrirBtn, pdf, csv);
+  if (podeExcluir) {
+    acoes.append(el('button', { type: 'button', className: 'botao his-btn his-perigo', textContent: T.historico.excluir, onclick: () => pedirExclusao(s) }));
+  }
+  tr.append(acoes);
   return tr;
 }
 
-function desenhar(sessoes, filtrando, comNome) {
+function desenhar(sessoes, filtrando, comNome, podeExcluir) {
   const comFisio = sessoes.some((s) => s.fisio);
   cabecalho(comFisio, comNome);
-  $('lista').replaceChildren(...sessoes.map((s) => linha(s, comFisio, comNome)));
+  $('lista').replaceChildren(...sessoes.map((s) => linha(s, comFisio, comNome, podeExcluir)));
   $('tabela').hidden = sessoes.length === 0;
   $('vazio').hidden = sessoes.length > 0;
   $('vazio').textContent = filtrando ? T.historico.nadaEncontrado : T.historico.vazio;
@@ -124,7 +160,7 @@ async function carregar() {
     return;
   }
   mostrarErro('');
-  desenhar(r.sessoes, Boolean(busca || dataISO), revelar);
+  desenhar(r.sessoes, Boolean(busca || dataISO), revelar, Boolean(r.pode_excluir));
   $('f-dica').textContent = revelar ? T.historico.dicaNomes : T.historico.dicaCodigos;
 }
 
@@ -133,6 +169,8 @@ $('filtros').addEventListener('submit', (ev) => ev.preventDefault());
 campoBusca.addEventListener('input', () => { clearTimeout(espera); espera = setTimeout(carregar, 250); });
 campoData.addEventListener('input', () => { clearTimeout(espera); espera = setTimeout(carregar, 250); });
 caixaNomes.addEventListener('change', carregar);
+$('excluir-cancelar').addEventListener('click', () => $('excluir-dialogo').close());
+$('excluir-confirmar').addEventListener('click', confirmarExclusao);
 $('f-limpar').addEventListener('click', () => {
   campoBusca.value = '';
   campoData.value = '';

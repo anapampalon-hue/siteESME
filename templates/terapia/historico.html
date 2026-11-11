@@ -3,7 +3,7 @@
 {% block title %}Histórico · ESME{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{% static 'terapia/css/historico.css' %}">
+<link rel="stylesheet" href="{% static 'terapia/css/historico.css' %}?v=2">
 {% navbar "" %}
 
 {# os endereços com "0" são modelos: o historico.js troca o 0 pelo número da sessão #}
@@ -18,8 +18,10 @@
     </p>
 
     <header class="his-topo">
-        <h1>Histórico de sessões</h1>
-        <a class="botao botao-claro his-voltar" href="{% url 'home' %}">Voltar ao início</a>
+        <div class="titulo-linha">
+            <a class="btn-quadrado" href="{% url 'home' %}" aria-label="Voltar ao início" title="Voltar ao início"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M11 5.5L4.5 12l6.5 6.5"/></svg></a>
+            <h1>Histórico de sessões</h1>
+        </div>
     </header>
 
     <p id="faixa-erro" class="his-faixa-erro" role="alert" hidden></p>
@@ -52,5 +54,16 @@
     </div>
 </div>
 
-<script type="module" src="{% static 'terapia/js/historico.js' %}?v=1"></script>
+{# confirmação de exclusão definitiva (só a supervisora vê o botão que abre esta janela) #}
+<dialog id="excluir-dialogo" class="his-dialogo" aria-labelledby="excluir-titulo">
+    <h2 id="excluir-titulo"></h2>
+    <p id="excluir-texto"></p>
+    <p id="excluir-erro" class="his-dica-erro his-erro-dialogo" role="alert" hidden></p>
+    <div class="his-dialogo-botoes">
+        <button type="button" id="excluir-cancelar" class="botao botao-claro his-btn"></button>
+        <button type="button" id="excluir-confirmar" class="botao his-btn his-perigo"></button>
+    </div>
+</dialog>
+
+<script type="module" src="{% static 'terapia/js/historico.js' %}?v=2"></script>
 {% endblock %}

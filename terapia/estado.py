@@ -27,11 +27,12 @@ import traceback
 import unicodedata
 import uuid
 
+from django.db import connection, transaction
 from django.utils import timezone
 
 from . import fluidez as calculo_fluidez
 from .campos import codigo_paciente, normalizar_nome
-from .models import EventoBobina, Fisioterapeuta, Sessao, Tentativa, eh_gestor
+from .models import MRC_MAX_ITENS, EventoBobina, Feedback, Fisioterapeuta, MrcItem, Sessao, Tentativa, eh_gestor
 from .protocolo import EV_BOBINA, EV_FIM, EV_GOL, EV_INICIO
 
 SEM_SINAL_S = 2.0   # escopo do Sandro: ~2 s sem pacotes = sem sinal
@@ -41,6 +42,8 @@ PRAZO_CALCULO_S = 3.0   # escopo: espera as amostras do batedor por até ~3 s
 GRAVAR_AMOSTRAS = True   # TESTES: guarda as amostras brutas de cada tentativa em <projeto>/gravacoes/ (ver _gravar_tentativa). Em uso real, False.
 GRAVAR_ANTES_S, GRAVAR_DEPOIS_S = 2.0, 1.0   # quanto antes do início e depois do fim da tentativa entra na gravação
 COMENTARIO_MAX = 2000   # letras do comentário da terapeuta
+NOTA_MAX = 1000         # letras da anotação de uma tentativa (ou de um critério do MRC)
+GRUPO_MRC_MAX = 60      # letras do nome do grupo muscular no MRC
 COD_GOL = 9         # Tentativa.bobinas_atingidas == 9 significa "chegou ao gol"
 NOME_ANONIMO = 'Anônimo'   # sessão sem o aceite do TCLE: sem nome, sem data e sem código; apagada ao fechar
 
@@ -67,6 +70,23 @@ def _alcance(t):
     return {'cm': None, 'bobina': None, 'gol': False}
 
 
+def _avaliavel(t):
+    """Só tentativa CONCLUÍDA, não anulada e não interrompida entra na avaliação (e na obrigação de preencher a dor)."""
+    return t.finalizada_em is not None and not t.anulada and t.resultado != Tentativa.Resultado.INTERROMPIDA
+
+
+def _feedback_de(t):
+    try:
+        return t.feedback
+    except Feedback.DoesNotExist:
+        return None
+
+
+def _pendencias(tentativas):
+    """Quantas tentativas avaliáveis ainda estão sem a dor preenchida (a sessão só encerra com zero)."""
+    return sum(1 for t in tentativas if _avaliavel(t) and (_feedback_de(t) is None or _feedback_de(t).dor is None))
+
+
 def _tentativa_dict(t, calculando=False):
     """Uma tentativa no formato do contrato (seção 12.3). A tela só mostra; nunca recalcula.
     estado: aguardando_disco | em_andamento | calculando (fluidez a caminho) | concluida"""
@@ -77,6 +97,9 @@ def _tentativa_dict(t, calculando=False):
     d.update(estado='calculando' if calculando else 'concluida', resultado=t.resultado)
     if t.motivo:
         d['motivo'] = t.motivo
+    fb = _feedback_de(t)
+    d['avaliavel'] = _avaliavel(t)
+    d['avaliacao'] = {'qualidade': fb.qualidade if fb else None, 'dor': fb.dor if fb else None, 'nota': (fb.nota if fb else '') or ''}
     if calculando:
         return d
     d['fluidez'] = {'nivel': t.fluidez_nivel or 'indisponivel'}
@@ -281,7 +304,12 @@ class Programa:
             self._garantir_worker()
         self._mexeu()
         if self.encerrando:
-            self._concluir()
+            s = Sessao.objects.filter(pk=self.sessao_id).first()
+            if s is not None and self._pendencias_da(s):
+                self.encerrando = False          # a tentativa que acabou de fechar precisa da dor: a sessão continua aberta
+                self._mexeu()
+            else:
+                self._concluir()
 
     # ================= fluidez em segundo plano =================
     def _garantir_worker(self):
@@ -400,6 +428,9 @@ class Programa:
                 return {'ok': False, 'erro': 'nao_encontrado'}
             if not self._eh_dono(user, s.fisioterapeuta_id):
                 return {'ok': False, 'erro': 'sem_permissao'}
+            pend = self._pendencias_da(s)
+            if pend:
+                return {'ok': False, 'erro': 'avaliacoes_pendentes', 'pendentes': pend}   # o servidor confere; não só o botão
             t = self._aberta()
             if t is not None and t.bobinas_atingidas == 0:
                 t.delete()                        # a que aguarda o disco é descartada
@@ -477,6 +508,108 @@ class Programa:
             s.save(update_fields=['comentario', 'comentario_em'])
             return {'ok': True}
 
+    # ================= avaliação da tentativa, MRC e exclusão =================
+    def _pendencias_da(self, s):
+        return _pendencias(list(s.tentativas.select_related('feedback')))
+
+    def salvar_avaliacao(self, user, numero, campos):
+        """Avaliação de UMA tentativa concluída. `campos` traz só o que mudou: 'qualidade' (None ou 0-5; None apaga a
+        nota), 'dor' (None ou 0-2) e/ou 'nota' (texto livre, guardado criptografado). Vale na sessão aberta e na
+        sessão reaberta do histórico."""
+        qualidade, dor, nota = campos.get('qualidade'), campos.get('dor'), campos.get('nota')
+        for chave, valor, maximo in (('qualidade', qualidade, Feedback.QUALIDADE_MAX), ('dor', dor, Feedback.DOR_MAX)):
+            if chave in campos and valor is not None and (isinstance(valor, bool) or not isinstance(valor, int) or not 0 <= valor <= maximo):
+                return {'ok': False, 'erro': 'avaliacao_invalida'}
+        if 'nota' in campos:
+            if not isinstance(nota, str):
+                return {'ok': False, 'erro': 'avaliacao_invalida'}
+            nota = nota.replace('\r\n', '\n').strip()
+            if len(nota) > NOTA_MAX:
+                return {'ok': False, 'erro': 'nota_longa'}
+        with self._lock:
+            sid = self.sessao_id or self.leitura_id
+            t = (Tentativa.objects.filter(sessao_id=sid, numero=numero, finalizada_em__isnull=False).select_related('sessao').first()
+                 if sid else None)
+            if t is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._eh_dono(user, t.sessao.fisioterapeuta_id):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            if t.resultado == Tentativa.Resultado.INTERROMPIDA:
+                return {'ok': False, 'erro': 'tentativa_interrompida'}      # interrompidas não são avaliadas
+            fb = _feedback_de(t) or Feedback(tentativa=t)
+            if 'qualidade' in campos:
+                fb.qualidade = qualidade
+            if 'dor' in campos:
+                fb.dor = dor
+            if 'nota' in campos:
+                fb.nota = nota
+            fb.save()
+            self._mexeu()
+            return {'ok': True}
+
+    def salvar_mrc(self, user, itens):
+        """MRC (força muscular) da sessão: opcional, até MRC_MAX_ITENS critérios. Cada item: grupo, grau (0 a 5) e nota.
+        A lista inteira substitui a anterior; linha totalmente vazia é ignorada."""
+        if not isinstance(itens, list) or len(itens) > MRC_MAX_ITENS:
+            return {'ok': False, 'erro': 'mrc_invalido'}
+        limpos = []
+        for it in itens:
+            if not isinstance(it, dict):
+                return {'ok': False, 'erro': 'mrc_invalido'}
+            grupo, grau, nota = it.get('grupo') or '', it.get('grau'), it.get('nota') or ''
+            if not isinstance(grupo, str) or not isinstance(nota, str):
+                return {'ok': False, 'erro': 'mrc_invalido'}
+            if grau is not None and (isinstance(grau, bool) or not isinstance(grau, int) or not 0 <= grau <= 5):
+                return {'ok': False, 'erro': 'mrc_invalido'}
+            grupo, nota = ' '.join(grupo.split()), nota.replace('\r\n', '\n').strip()
+            if len(grupo) > GRUPO_MRC_MAX or len(nota) > NOTA_MAX:
+                return {'ok': False, 'erro': 'mrc_longo'}
+            if grupo or grau is not None or nota:
+                limpos.append((grupo, grau, nota))
+        with self._lock:
+            sid = self.sessao_id or self.leitura_id
+            s = Sessao.objects.filter(pk=sid).first() if sid else None
+            if s is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._eh_dono(user, s.fisioterapeuta_id):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            with transaction.atomic():
+                s.mrc.all().delete()
+                MrcItem.objects.bulk_create([MrcItem(sessao=s, ordem=i, grupo=g, grau=gr, nota=n)
+                                             for i, (g, gr, n) in enumerate(limpos, start=1)])
+            self._mexeu()
+            return {'ok': True}
+
+    def excluir_sessao(self, user, pk):
+        """Exclui DE VEZ uma sessão do histórico (com tentativas, curvas, avaliações e MRC). Só o gestor (supervisora
+        ou superadmin): a tela esconde o botão, mas é ESTE teste que vale. Depois compacta o banco para os dados
+        apagados não ficarem no arquivo."""
+        with self._lock:
+            if not eh_gestor(user):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            if pk == self.sessao_id:
+                return {'ok': False, 'erro': 'sessao_aberta'}
+            s = Sessao.objects.filter(pk=pk).first()
+            if s is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            s.delete()
+            if self.leitura_id == pk:
+                self.leitura_id = None
+            self._pend = {k: v for k, v in self._pend.items() if Tentativa.objects.filter(pk=k).exists()}
+            self._compactar_banco()
+            self._mexeu()
+            return {'ok': True}
+
+    @staticmethod
+    def _compactar_banco():
+        """SQLite não apaga de verdade o que foi excluído (as páginas ficam livres dentro do arquivo): o VACUUM refaz o arquivo."""
+        try:
+            if connection.vendor == 'sqlite':
+                with connection.cursor() as c:
+                    c.execute('VACUUM')
+        except Exception:
+            traceback.print_exc()                     # a exclusão já foi feita; só avisa no terminal
+
     def abrir_sessao(self, user, pk):
         """Abre uma sessão do histórico na tela de Sessão (só leitura, com Detalhes, Anular e comentário)."""
         with self._lock:
@@ -498,6 +631,9 @@ class Programa:
                 return {'ok': False, 'erro': 'nao_encontrado'}
             if not self._eh_dono(user, s.fisioterapeuta_id):
                 return {'ok': False, 'erro': 'sem_permissao'}
+            pend = self._pendencias_da(s)
+            if pend:
+                return {'ok': False, 'erro': 'avaliacoes_pendentes', 'pendentes': pend}
             ultima = s.tentativas.filter(finalizada_em__isnull=False).order_by('-finalizada_em').first()
             if ultima is None:
                 s.delete()                          # sem tentativas não se guarda
@@ -543,7 +679,7 @@ class Programa:
                 linhas.append(linha)
                 if len(linhas) >= 300:
                     break
-            return {'ok': True, 'sessoes': linhas}
+            return {'ok': True, 'sessoes': linhas, 'pode_excluir': eh_gestor(user)}
 
     def fechar_leitura(self, user):
         with self._lock:
@@ -566,7 +702,7 @@ class Programa:
 
     # ================= saída: o estado que a tela lê =================
     def _sessao_dict(self, s, status):
-        tents = list(s.tentativas.order_by('-numero'))
+        tents = list(s.tentativas.select_related('feedback').order_by('-numero'))
         return {
             'id': s.pk, 'codigo': s.garantir_codigo(), 'comentario': s.comentario or '', 'anonima': s.anonima,
             'paciente': s.paciente_nome, 'data': None if s.anonima else s.data_sessao.isoformat(),
@@ -575,6 +711,9 @@ class Programa:
             'status': status, 'duracao_min': _duracao_min(s), 'tentativas': [_tentativa_dict(t, t.pk in self._pend) for t in tents],
             'resumo': _resumo(tents, self._pend),
             'pdf': None, 'encerrando': self.encerrando and status == 'em_andamento',
+            'avaliacoes_pendentes': _pendencias(tents),
+            'mrc': [{'grupo': m.grupo, 'grau': m.grau, 'nota': m.nota or ''} for m in s.mrc.all()],
+            'mrc_max': MRC_MAX_ITENS,
         }
 
     def snapshot(self, user):

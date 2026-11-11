@@ -3,8 +3,9 @@ terapia/models.py — Banco de dados do ESME (v3: nome do paciente criptografado
 
 Hierarquia (cada seta é uma chave estrangeira):
 
-    User (Django) ─1:1─ Fisioterapeuta ─1:N─ Sessao ─1:N─ Tentativa ─┬─1:N─ EventoBobina
-                                                                      └─1:1─ Feedback
+    User (Django) ─1:1─ Fisioterapeuta ─1:N─ Sessao ─┬─1:N─ Tentativa ─┬─1:N─ EventoBobina
+                                                     │                 └─1:1─ Feedback (avaliação)
+                                                     └─1:N─ MrcItem (força muscular, opcional, até 5)
 
 O paciente NÃO é uma tabela: a fisio digita nome e data ao iniciar a sessão
 (campos paciente_nome e data_sessao). O nome só aparece no relatório; telas de
@@ -287,16 +288,49 @@ class EventoBobina(models.Model):
 
 
 # ──────────────────────────────────────────────────────────────
-# FEEDBACK  (preenchido pela fisio após a tentativa)
+# FEEDBACK  (a AVALIAÇÃO que a fisio faz de uma tentativa concluída)
 # ──────────────────────────────────────────────────────────────
 class Feedback(models.Model):
+    """Criado quando a terapeuta salva a primeira resposta da janela "Avaliar".
+    qualidade vazia = sem nota (no relatório aparecem 5 estrelas vazias); dor vazia = ainda não preenchida
+    (enquanto houver tentativa concluída sem dor, a sessão não pode ser encerrada)."""
+    QUALIDADE_MAX = 5
+    DOR_MAX = 2
+    DOR_TEXTO = {0: 'nenhuma', 1: 'alguma', 2: 'pronunciada'}
+
     tentativa = models.OneToOneField(Tentativa, on_delete=models.CASCADE, related_name='feedback')
     data = models.DateField(auto_now_add=True)
-    dor = models.PositiveSmallIntegerField(
-        null=True, blank=True, validators=[MaxValueValidator(10)], help_text='Escala 0 a 10'
+    # nota de qualidade do movimento, 0 a 5 (estrelas; 5 = melhor)
+    qualidade = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(5)], help_text='Qualidade do movimento, 0 a 5'
     )
-    concluiu = models.BooleanField(default=False)
-    pulou = models.BooleanField(default=False)
+    # dor durante a tentativa: 0 = nenhuma, 1 = alguma, 2 = pronunciada (obrigatória nas tentativas concluídas)
+    dor = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(2)], help_text='0 = nenhuma, 1 = alguma, 2 = pronunciada'
+    )
+    # anotação livre da tentativa: criptografada, porque pode citar dados do paciente
+    nota = CampoCriptografado(blank=True, default='')
 
     def __str__(self):
-        return f'Feedback — {self.tentativa}'
+        return f'Avaliação — {self.tentativa}'
+
+
+# ──────────────────────────────────────────────────────────────
+# MRC  (força muscular da SESSÃO; opcional; a terapeuta adiciona até 5 critérios)
+# ──────────────────────────────────────────────────────────────
+MRC_MAX_ITENS = 5
+
+
+class MrcItem(models.Model):
+    sessao = models.ForeignKey(Sessao, on_delete=models.CASCADE, related_name='mrc')
+    ordem = models.PositiveSmallIntegerField()
+    grupo = models.CharField(max_length=60, blank=True)             # ex.: "Ombro (abdução)"
+    grau = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MaxValueValidator(5)])   # MRC 0 a 5
+    nota = CampoCriptografado(blank=True, default='')
+
+    class Meta:
+        ordering = ['ordem']
+        constraints = [models.UniqueConstraint(fields=['sessao', 'ordem'], name='mrc_ordem_unica_por_sessao')]
+
+    def __str__(self):
+        return f'MRC {self.grupo or "—"}: {self.grau if self.grau is not None else "—"}'

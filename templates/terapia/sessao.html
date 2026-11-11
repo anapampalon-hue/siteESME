@@ -3,7 +3,7 @@
 {% block title %}Sessão · ESME{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}">
+<link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}?v=2">
 
 <div class="ses" id="app" data-url-inicio="{% url 'home' %}" data-url-espera="{% url 'espera_mesa' %}"
      data-url-historico="{% url 'historico' %}"
@@ -75,10 +75,10 @@
     {# comentário da terapeuta: opcional, salva sozinho enquanto ela escreve #}
     <section class="ses-comentario" aria-labelledby="com-titulo">
         <div class="ses-comentario-topo">
-            <h2 id="com-titulo">Comentários da terapeuta <small>(opcional)</small></h2>
+            <h2 id="com-titulo">Comentários <small>(opcional)</small></h2>
             <p class="ses-comentario-estado" id="com-estado" role="status" aria-live="polite"></p>
         </div>
-        <label for="com-texto" class="sr-only">Comentários da terapeuta sobre esta sessão</label>
+        <label for="com-texto" class="sr-only">Comentários sobre esta sessão</label>
         <textarea id="com-texto" rows="4" maxlength="2000" autocomplete="off"></textarea>
         <div class="ses-comentario-pe">
             <p id="com-dica"></p>
@@ -86,6 +86,24 @@
         </div>
         <p id="com-erro" class="ses-comentario-erro" role="alert" hidden></p>
     </section>
+
+    {# MRC (força muscular): opcional, até 5 critérios; salva sozinho; só entra no relatório se houver algo preenchido #}
+    <section class="ses-mrc" id="mrc" aria-labelledby="mrc-titulo">
+        <div class="ses-comentario-topo">
+            <h2 id="mrc-titulo">Força muscular (MRC) <small>(opcional)</small></h2>
+            <p class="ses-comentario-estado" id="mrc-estado" role="status" aria-live="polite"></p>
+        </div>
+        <p class="ses-mrc-escala" id="mrc-escala"></p>
+        <div id="mrc-linhas" class="ses-mrc-linhas"></div>
+        <div class="ses-mrc-pe">
+            <button type="button" id="mrc-adicionar" class="botao botao-claro ses-btn"></button>
+            <p id="mrc-dica" class="ses-mrc-dica"></p>
+        </div>
+        <p id="mrc-erro" class="ses-comentario-erro" role="alert" hidden></p>
+    </section>
+
+    {# enquanto houver tentativa concluída sem a dor preenchida, a sessão não encerra #}
+    <p id="aviso-pendencias" class="ses-aviso-interrompida ses-aviso-pendencias" role="status" aria-live="polite" hidden></p>
 
     <div class="ses-rodape">
         {# só com a sessão encerrada: uma caixinha para cada tipo de fluidez #}
@@ -107,23 +125,52 @@
 
 {# ---------- janela Detalhe de uma tentativa ---------- #}
 <dialog id="detalhe" class="ses-detalhe" aria-labelledby="det-titulo">
+    {# o X fica fora da caixa, acima do canto esquerdo #}
+    <button type="button" id="det-fechar" class="btn-quadrado ses-det-x" aria-label="Fechar" title="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="ses-det-caixa">
     <header>
         <h2 id="det-titulo"></h2>
-        <button type="button" id="det-fechar" class="botao botao-claro ses-btn">Fechar</button>
     </header>
     <dl class="ses-det-resumo">
         <dt>Alcance:</dt><dd id="det-alcance"></dd>
         <dt>Fluidez:</dt><dd id="det-fluidez"></dd>
     </dl>
     <div id="det-curva" class="ses-det-curva" aria-live="polite"></div>
-    <p id="det-legenda" class="ses-legenda"></p>
+
+    {# avaliação da terapeuta: estrelas (opcional), dor (obrigatória) e anotação (opcional) #}
+    <section class="ses-aval" id="det-aval" aria-label="Avaliação da tentativa">
+        <div class="ses-aval-linha">
+            <span class="ses-aval-rotulo" id="aval-q-rotulo"></span>
+            <div class="ses-estrelas" id="aval-estrelas" role="radiogroup" aria-labelledby="aval-q-rotulo"></div>
+            <small class="ses-aval-ajuda" id="aval-q-ajuda"></small>
+        </div>
+        <fieldset class="ses-aval-dor" id="aval-dor">
+            <legend id="aval-dor-rotulo"></legend>
+            <div class="ses-bolinhas" id="aval-bolinhas"></div>
+            <small class="ses-aval-ajuda" id="aval-dor-ajuda"></small>
+        </fieldset>
+        <div class="ses-comentario ses-aval-nota">
+            <div class="ses-comentario-topo">
+                <label for="aval-nota" id="aval-nota-rotulo"></label>
+                <p class="ses-comentario-estado" id="aval-estado" role="status" aria-live="polite"></p>
+            </div>
+            <textarea id="aval-nota" rows="4" maxlength="1000" autocomplete="off"></textarea>
+            <div class="ses-comentario-pe">
+                <p id="aval-dica"></p>
+                <p id="aval-contador" class="ses-contador"></p>
+            </div>
+        </div>
+        <p id="aval-erro" class="ses-comentario-erro" role="alert" hidden></p>
+    </section>
+    <p id="aval-sem" class="ses-aval-sem" hidden></p>
     <p class="ses-aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
     <footer>
         <button type="button" id="det-anterior" class="botao botao-claro ses-btn">&lt; Anterior</button>
         <button type="button" id="det-anular" class="botao botao-claro ses-btn">Anular</button>
         <button type="button" id="det-proxima" class="botao botao-claro ses-btn">Próxima &gt;</button>
     </footer>
+    </div>
 </dialog>
 
-<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=5"></script>
+<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=6"></script>
 {% endblock %}

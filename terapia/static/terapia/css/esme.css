@@ -71,6 +71,18 @@ h1 { margin: 0 0 0.5rem; font: 700 2.4rem/1.1 var(--fonte-titulo); }
 .botao:focus-visible { outline: 3px solid var(--branco); outline-offset: 4px; }
 
 .botao-claro { background: var(--gelo); }
+
+/* quadradinho do ESME com ícone (seta de voltar, X de fechar): mesmo contorno e sombra dos botões */
+.btn-quadrado {
+    display: inline-grid; place-items: center; flex: none; width: 2.9rem; height: 2.9rem; padding: 0; color: var(--tinta);
+    background: var(--gelo); border: 3px solid var(--tinta); border-radius: 6px; box-shadow: 4px 4px 0 var(--tinta);
+    cursor: pointer; text-decoration: none; transition: transform 0.08s, box-shadow 0.08s;
+}
+.btn-quadrado svg { width: 1.6rem; height: 1.6rem; fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.btn-quadrado:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--tinta); background: var(--alien); }
+.btn-quadrado:active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--tinta); }
+.btn-quadrado:focus-visible { outline: 3px solid var(--branco); outline-offset: 4px; }
+.titulo-linha { display: flex; align-items: center; gap: 1rem; }
 .botao-contorno { color: var(--branco); background: transparent; border-color: var(--branco); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.6); }
 .botao-grande { width: 100%; padding: 1.2rem 1.5rem; font-size: 1.4rem; }
 

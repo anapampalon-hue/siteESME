@@ -8,8 +8,10 @@
 
 <div class="eq">
     <header class="eq-topo">
-        <h1>{{ f.nome }}</h1>
-        <a class="botao botao-claro" href="{% url 'equipe' %}">Voltar à equipe</a>
+        <div class="titulo-linha">
+            <a class="btn-quadrado" href="{% url 'equipe' %}" aria-label="Voltar à equipe" title="Voltar à equipe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M11 5.5L4.5 12l6.5 6.5"/></svg></a>
+            <h1>{{ f.nome }}</h1>
+        </div>
     </header>
 
     {% if aviso %}<p class="eq-aviso eq-aviso-{{ aviso.tipo }}" role="status">{{ aviso.texto }}</p>{% endif %}

@@ -8,9 +8,11 @@
 
 <div class="eq">
     <header class="eq-topo">
-        <h1>Equipe</h1>
+        <div class="titulo-linha">
+            <a class="btn-quadrado" href="{% url 'home' %}" aria-label="Voltar ao início" title="Voltar ao início"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H5M11 5.5L4.5 12l6.5 6.5"/></svg></a>
+            <h1>Equipe</h1>
+        </div>
         <div class="eq-topo-acoes">
-            <a class="botao botao-claro" href="{% url 'home' %}">Voltar ao início</a>
             <a class="botao" href="{% url 'equipe_novo' %}">Novo perfil</a>
         </div>
     </header>

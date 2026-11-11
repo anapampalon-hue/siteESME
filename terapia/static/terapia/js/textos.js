@@ -37,7 +37,7 @@ export const T = {
     encerrando: 'Encerrando…',
     encerrar: 'Encerrar sessão',
     fechar: 'Fechar',
-    encerrada: 'Sessão encerrada. Você ainda pode anular ou desfazer tentativas.',
+    encerrada: 'Sessão encerrada. Você ainda pode anular ou desfazer tentativas e ajustar as avaliações.',
     aguardaFim: 'Esperando o disco parar para encerrar…',
     interrompida: 'Esta sessão foi interrompida: o programa foi fechado antes de ela ser encerrada. Confira as tentativas e clique em "Encerrar sessão" para concluí-la.',
     concluindo: 'Encerrando…',
@@ -47,7 +47,7 @@ export const T = {
 
   // comentário da terapeuta (opcional) — o texto é guardado criptografado
   comentario: {
-    titulo: 'Comentários da terapeuta',
+    titulo: 'Comentários',
     opcional: '(opcional)',
     dica: 'Não precisa escrever nada. Evite colocar o nome do paciente: o código já o identifica.',
     placeholder: 'Ex.: paciente cansou na metade; boa amplitude no ombro direito…',
@@ -56,6 +56,46 @@ export const T = {
     contador: (n, max) => `${n}/${max}`,
   },
   exportar: { pdf: 'Exportar PDF', csv: 'Baixar CSV' },
+
+  // avaliação de cada tentativa concluída (janela "Avaliar") e aviso para encerrar
+  avaliacao: {
+    qualidade: 'Qualidade do movimento',
+    qualidadeAjuda: 'Clique de novo na mesma estrela para apagar a nota.',
+    estrela: (n) => `${n} ${n === 1 ? 'estrela' : 'estrelas'}`,
+    dor: 'Dor',
+    dorOpcoes: ['Nenhuma', 'Alguma', 'Pronunciada'],      // valores 0, 1 e 2
+    dorObrigatoria: 'Obrigatória para encerrar a sessão.',
+    nota: 'Anotações da tentativa',
+    notaPlaceholder: 'Ex.: compensou com o tronco no final…',
+    notaContador: (n, max) => `${n}/${max}`,
+    notaDica: 'Não precisa escrever nada. Evite colocar o nome do paciente.',
+    salvando: 'Salvando…',
+    salvo: 'Salvo',
+    semInterrompida: 'Tentativas interrompidas não são avaliadas: aqui só há a curva.',
+    semAnulada: 'Esta tentativa está anulada e não entra na avaliação.',
+    pendente: 'dor sem preencher',
+  },
+  pendencias: (n) => (n === 1
+    ? 'Falta 1 tentativa com a dor sem preencher. Abra "Avaliar" na tentativa marcada com ! para poder encerrar a sessão.'
+    : `Faltam ${n} tentativas com a dor sem preencher. Abra "Avaliar" nas tentativas marcadas com ! para poder encerrar a sessão.`),
+
+  // MRC (força muscular), opcional, até 5 critérios
+  mrc: {
+    titulo: 'Força muscular (MRC)',
+    opcional: '(opcional)',
+    escala: '0 = sem contração · 1 = contração sem movimento · 2 = move sem vencer a gravidade · 3 = vence a gravidade · 4 = vence resistência · 5 = força normal',
+    grupo: 'Grupo muscular',
+    grupoPlaceholder: 'Ex.: ombro (abdução)',
+    grau: 'Grau MRC',
+    nota: 'Anotação',
+    notaPlaceholder: 'Anotação deste critério (opcional)',
+    adicionar: 'Adicionar critério',
+    remover: 'Remover',
+    limite: (max) => `Máximo de ${max} critérios.`,
+    salvando: 'Salvando…',
+    salvo: 'Salvo',
+    dica: 'Não precisa preencher. Só entra no relatório se houver algum critério preenchido.',
+  },
   codigo: 'Código',
 
   historico: {
@@ -63,7 +103,12 @@ export const T = {
     colValidas: 'Tentativas válidas', colMelhor: 'Melhor alcance', colStatus: 'Situação', colAcoes: 'Ações',
     status: { concluida: 'Concluída', interrompida: 'Interrompida' },
     comComentario: 'com comentário',
-    abrir: 'Abrir', pdf: 'PDF', csv: 'CSV',
+    abrir: 'Abrir', pdf: 'PDF', csv: 'CSV', excluir: 'Excluir',
+    excluirTitulo: 'Excluir sessão',
+    excluirTexto: (codigo, data) => `Excluir a sessão ${codigo} de ${data}? Isso apaga a sessão, as tentativas, as avaliações e o MRC para sempre e não pode ser desfeito.`,
+    excluirCancelar: 'Cancelar',
+    excluirConfirmar: 'Sim, excluir',
+    excluindo: 'Excluindo…',
     vazio: 'Nenhuma sessão ainda.',
     nadaEncontrado: 'Nenhuma sessão encontrada com esses filtros.',
     dicaCodigos: 'Os pacientes aparecem pelo código (pseudônimo). Marque "Mostrar nomes" para ver os nomes.',
@@ -86,13 +131,12 @@ export const T = {
 
   semTentativas: 'Nenhuma tentativa ainda. Aperte nova tentativa na mesa e peça ao paciente que bata no disco.',
 
-  acoes: { detalhes: 'Detalhes', anular: 'Anular', restaurar: 'Desfazer' },   // 'restaurar' é o nome do comando; na tela é "Desfazer"
+  acoes: { detalhes: 'Detalhes', avaliar: 'Avaliar', anular: 'Anular', restaurar: 'Desfazer' },   // 'restaurar' é o nome do comando; na tela é "Desfazer"
 
   detalhe: {
     calculando: 'Calculando o gráfico…',
     carregando: 'Carregando o gráfico…',
     semGrafico: 'Não há gráfico para esta tentativa.',
-    legenda: 'Um pico só: movimento fluido. Vários picos: movimento entrecortado.',
     semCurva: {
       sem_dados_batedor: 'Sem dados do batedor nesta tentativa.',
       sem_repouso: 'Sem repouso de referência para calcular a velocidade.',
@@ -164,6 +208,12 @@ export const T = {
     nao_encontrado: 'Não encontrei essa sessão. Volte ao histórico e tente de novo.',
     placas_nao_configuradas: 'Antes de começar, configure a mesa e o batedor em Configurações.',
     comentario_longo: 'O comentário é longo demais (máximo de 2000 letras).',
+    avaliacoes_pendentes: 'Ainda há tentativas com a dor sem preencher. Abra "Avaliar" nelas antes de encerrar.',
+    avaliacao_invalida: 'Esse valor não é válido para a avaliação.',
+    nota_longa: 'A anotação é longa demais (máximo de 1000 letras).',
+    tentativa_interrompida: 'Tentativas interrompidas não são avaliadas.',
+    mrc_invalido: 'O MRC tem dados inválidos (máximo de 5 critérios, grau de 0 a 5).',
+    mrc_longo: 'Um texto do MRC é longo demais.',
     sem_conexao: 'Sem conexão com o programa.',
     banco_desatualizado: 'O banco de dados está desatualizado. Pare o site (Ctrl+C) e rode: python manage.py makemigrations e depois python manage.py migrate.',
   },
