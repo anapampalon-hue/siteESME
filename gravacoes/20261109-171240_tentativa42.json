@@ -1,0 +1,12 @@
+{
+ "tentativa": 42,
+ "ini_s": 461995.64,
+ "fim_s": 461996.625,
+ "amostras": 317,
+ "nivel": "indisponivel",
+ "motivo": "sem_dados_batedor",
+ "picos": null,
+ "v_max": null,
+ "repouso_achado": true,
+ "usou_repouso_anterior": false
+}

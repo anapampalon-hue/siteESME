@@ -1,0 +1,12 @@
+{
+ "tentativa": 10,
+ "ini_s": 607697.968,
+ "fim_s": 607700.828,
+ "amostras": 491,
+ "nivel": "alta",
+ "motivo": null,
+ "picos": 1,
+ "v_max": 0.46,
+ "repouso_achado": true,
+ "usou_repouso_anterior": false
+}
