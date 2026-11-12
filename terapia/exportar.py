@@ -4,15 +4,16 @@ exportar.py — monta o que sai do programa: o RELATÓRIO da sessão (página pa
 SESSÃO ANÔNIMA (sem o "check" do TCLE): sem código, sem data, sem horário e sem nome; só os dados das tentativas.
 
 PSEUDONIMIZAÇÃO: por padrão nada aqui leva o nome do paciente, só o código (campos.codigo_paciente).
-  * Relatório: o nome só entra se a terapeuta marcar "Incluir o nome do paciente" (?nome=1).
+  * Relatório: o nome só entra se o terapeuta marcar "Incluir o nome do paciente" (?nome=1).
   * CSV: nunca leva nome nem comentário (o comentário é texto livre e pode citar dados do paciente);
     serve para planilhas e análises. Tentativas anuladas vão marcadas (anulada = sim); no relatório elas ficam de fora.
-  * A avaliação da terapeuta (qualidade do movimento e dor) vai no CSV só como números; as ANOTAÇÕES (texto livre), o MRC
+  * A avaliação do terapeuta (qualidade do movimento e dor) vai no CSV só como números; as ANOTAÇÕES (texto livre), o MRC
     e as escalas aplicadas (Fugl-Meyer, Wolf Motor) ficam só no relatório.
 """
 import csv
 import io
 
+from . import evolucao
 from .estado import _alcance, _avaliavel, _duracao_min, _feedback_de, _resumo
 from .models import Feedback
 
@@ -40,7 +41,7 @@ def _curva_svg(pontos, escala_max, largura=640, altura=170):
     """Curva de velocidade como SVG simples (mesma escala em todas as fichas; sem números no eixo vertical)."""
     if not pontos or not escala_max:
         return ''
-    ml, mr, mt, mb = 30, 10, 8, 34
+    ml, mr, mt, mb = 30, 10, 26, 34
     tmax = pontos[-1][0] or 1
     x = lambda t: ml + t / tmax * (largura - ml - mr)
     y = lambda v: altura - mb - v / escala_max * (altura - mb - mt)
@@ -58,12 +59,55 @@ def _curva_svg(pontos, escala_max, largura=640, altura=170):
             f'<path d="{topo}" class="linha"/>'
             f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{base:.1f}" class="eixo"/>'
             f'<line x1="{ml}" y1="{base:.1f}" x2="{largura - mr}" y2="{base:.1f}" class="eixo"/>'
+            f'<rect x="{ml + 8}" y="9" width="36" height="8" class="area"/><line x1="{ml + 8}" y1="9" x2="{ml + 44}" y2="9" class="linha"/>'
+            f'<text x="{ml + 52}" y="17">Velocidade do batedor ao longo da tentativa</text>'
             f'{ticks}<text x="{(ml + largura - mr) / 2:.1f}" y="{altura - 4}" text-anchor="middle">tempo (s)</text>'
             f'<text x="11" y="{(mt + base) / 2:.1f}" text-anchor="middle" transform="rotate(-90 11 {(mt + base) / 2:.1f})">velocidade</text></svg>')
 
 
+def _evolucao_svg(series, largura=640, altura=190):
+    """Curvas em tempo normalizado (0 a 100 %). series: [{'y': [100 valores], 'classe': css, 'rotulo': texto, 'faixa': [dp]?}].
+    A legenda vai dentro do desenho (no PDF não há caixinhas para ligar e desligar)."""
+    series = [x for x in series if x and x.get('y')]
+    if not series:
+        return ''
+    tem_faixa = any(x.get('faixa') for x in series)
+    nleg = len(series) + (1 if tem_faixa else 0)
+    ml, mr, mt, mb = 30, 10, 8 + 16 * nleg, 34
+    vmax = max(v + (x['faixa'][i] if x.get('faixa') else 0) for x in series for i, v in enumerate(x['y'])) * 1.05 or 1
+    x_ = lambda i: ml + i / 99 * (largura - ml - mr)
+    y_ = lambda v: altura - mb - v / vmax * (altura - mb - mt)
+    out = []
+    for sr in series:
+        if sr.get('faixa'):
+            cima = ' '.join(f"{'L' if i else 'M'}{x_(i):.1f} {y_(v + sr['faixa'][i]):.1f}" for i, v in enumerate(sr['y']))
+            baixo = ' '.join(f"L{x_(99 - i):.1f} {y_(max(0, sr['y'][99 - i] - sr['faixa'][99 - i])):.1f}" for i in range(100))
+            out.append(f'<path d="{cima} {baixo} Z" class="evo-faixa"/>')
+    for sr in series:
+        out.append(f'<path d="' + ' '.join(f"{'L' if i else 'M'}{x_(i):.1f} {y_(v):.1f}" for i, v in enumerate(sr['y']))
+                   + f'" class="{sr["classe"]}"/>')
+    base = y_(0)
+    out.append(f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{base:.1f}" class="eixo"/>'
+               f'<line x1="{ml}" y1="{base:.1f}" x2="{largura - mr}" y2="{base:.1f}" class="eixo"/>')
+    for p in (0, 20, 40, 60, 80, 100):
+        xi = ml + p / 100 * (largura - ml - mr)
+        out.append(f'<line x1="{xi:.1f}" y1="{base:.1f}" x2="{xi:.1f}" y2="{base + 4:.1f}" class="eixo"/>'
+                   f'<text x="{xi:.1f}" y="{base + 16:.1f}" text-anchor="middle">{p}</text>')
+    for k, sr in enumerate(series):                  # legenda no alto
+        yy = 12 + 16 * k
+        out.append(f'<line x1="{ml + 8}" y1="{yy - 4}" x2="{ml + 44}" y2="{yy - 4}" class="{sr["classe"]}"/>'
+                   f'<text x="{ml + 52}" y="{yy}">{sr["rotulo"]}</text>')
+    if tem_faixa:
+        yy = 12 + 16 * len(series)
+        out.append(f'<rect x="{ml + 8}" y="{yy - 9}" width="36" height="10" class="evo-faixa"/>'
+                   f'<text x="{ml + 52}" y="{yy}">Faixa clara: variação entre as tentativas (desvio padrão)</text>')
+    out.append(f'<text x="{(ml + largura - mr) / 2:.1f}" y="{altura - 4}" text-anchor="middle">tempo da tentativa (%)</text>'
+               f'<text x="11" y="{(mt + base) / 2:.1f}" text-anchor="middle" transform="rotate(-90 11 {(mt + base) / 2:.1f})">velocidade</text>')
+    return f'<svg viewBox="0 0 {largura} {altura}" role="img" aria-label="Velocidade em função do tempo normalizado">{"".join(out)}</svg>'
+
+
 def _avaliacao(t):
-    """Avaliação da terapeuta já em texto. Tentativa que não entra na avaliação (interrompida) não leva nada."""
+    """Avaliação do terapeuta já em texto. Tentativa que não entra na avaliação (interrompida) não leva nada."""
     if not _avaliavel(t):
         return {'avaliavel': False, 'estrelas': '', 'qualidade': None, 'dor': '', 'dor_num': None, 'nota': ''}
     f = _feedback_de(t)
@@ -91,6 +135,11 @@ def dados_relatorio(sessao, com_nome=False):
     resumo = _resumo(finais)
     escala = max((t.curva['v_max'] for t in validas if t.curva), default=0)
 
+    anonima = sessao.anonima
+    ev = None if anonima else evolucao.evolucao_da_sessao(sessao)
+    antes = ev['antes'] if ev else None
+    rot_antes = f"Média das sessões anteriores ({antes['n']} tent.), tracejada azul" if antes else ''
+
     linhas = []
     for t in validas:                                # anuladas ficam de fora do relatório
         nivel, motivo = _fluidez(t)
@@ -99,9 +148,12 @@ def dados_relatorio(sessao, com_nome=False):
             'motivo': TEXTO_MOTIVO.get(t.motivo, ''), 'alcance': texto_alcance(_alcance(t)),
             'fluidez': TEXTO_FLUIDEZ[nivel], 'fluidez_motivo': TEXTO_FLUIDEZ_MOTIVO.get(motivo, ''),
             'curva_svg': _curva_svg(t.curva['pontos'], escala) if t.curva else '',
+            'evo_svg': _evolucao_svg([
+                {'y': antes['y'], 'faixa': antes['dp'], 'classe': 'evo-antes', 'rotulo': rot_antes},
+                {'y': evolucao.normalizar(t.curva), 'classe': 'evo-esta', 'rotulo': f'Tentativa {t.numero}'},
+            ]) if (antes and t.curva) else '',
             'aval': _avaliacao(t),
         })
-    anonima = sessao.anonima
     mrc = [{'grupo': m.grupo, 'grau': m.grau, 'nota': m.nota or ''} for m in sessao.mrc.all()
            if m.grupo.strip() or m.grau is not None or (m.nota or '').strip()]
     return {
@@ -121,17 +173,28 @@ def dados_relatorio(sessao, com_nome=False):
         'tentativas': linhas,
         'mrc': mrc,
         'escalas': _escalas(sessao),
+        'evolucao_svg': _evolucao_svg([
+            {'y': antes['y'], 'classe': 'evo-antes', 'rotulo': f"Antes da sessão ({antes['n']} tent., {ev['sessoes_antes']} sess.)"} if antes else None,
+            {'y': ev['esta']['y'], 'classe': 'evo-esta', 'rotulo': f"Esta sessão ({ev['esta']['n']} tent.)"} if ev and ev['esta'] else None,
+            {'y': ev['atualizada']['y'], 'classe': 'evo-atual', 'rotulo': f"Evolução atualizada ({ev['atualizada']['n']} tent.)"} if antes and ev['atualizada'] else None,
+        ]) if (ev and antes) else '',
     }
 
 
 def _escalas(sessao):
-    """Escalas aplicadas pela terapeuta: só as preenchidas. Cada item: (nome, valor). Vazio = nada no relatório."""
+    """Escalas aplicadas pelo terapeuta: só as preenchidas, uma tabela por escala. Vazio = nada no relatório.
+    Cada item: {'titulo', 'nota', 'linhas': [(medida, resultado), ...]}."""
+    virgula = lambda v: str(v).replace('.', ',')
     itens = []
     if sessao.fma_total is not None:
-        itens.append(('Fugl-Meyer (membro superior)', f'{sessao.fma_total} de 66'))
+        itens.append({'titulo': 'Fugl-Meyer (membro superior)',
+                      'nota': 'Avalia a função motora do membro superior, de 0 a 66 pontos. Aplicado pelo terapeuta.',
+                      'linhas': [('Pontuação total', f'{sessao.fma_total} de 66')]})
     if sessao.wmft_tempo is not None and sessao.wmft_nota is not None:
-        itens.append(('Wolf Motor (WMFT)',
-                      f'tempo médio {str(sessao.wmft_tempo).replace(".", ",")} s por tarefa · nota média {str(sessao.wmft_nota).replace(".", ",")} de 5'))
+        itens.append({'titulo': 'Wolf Motor Function Test (WMFT)',
+                      'nota': 'Mede o tempo e a qualidade de tarefas funcionais com o membro afetado. Aplicado pelo terapeuta.',
+                      'linhas': [('Tempo médio por tarefa', f'{virgula(sessao.wmft_tempo)} s'),
+                                 ('Nota média', f'{virgula(sessao.wmft_nota)} de 5')]})
     return itens
 
 

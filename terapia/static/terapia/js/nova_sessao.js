@@ -18,7 +18,7 @@ const caixaTcle = $('tcle');
 
 /* ---------- TCLE virtual ----------
    Marcado: nome e data valem (como sempre). Desmarcado: o nome vira "Anônimo", a data 00/00/0000 e os campos travam;
-   o programa guarda a sessão só até ela ser fechada. O que a terapeuta já digitou volta se ela marcar de novo. */
+   o programa guarda a sessão só até ela ser fechada. O que o terapeuta já digitou volta se marcar de novo. */
 let digitado = { nome: '', data: '' };
 function aplicarTcle(foco) {
   const aceito = caixaTcle.checked;

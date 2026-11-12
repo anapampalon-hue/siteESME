@@ -72,10 +72,10 @@ def historico(request):
 
 
 # ---------------------------------------------------------------------------
-# EQUIPE (só a supervisora): lista de terapeutas, novo perfil e o perfil de cada uma
+# EQUIPE (só o supervisor): lista de terapeutas, novo perfil e o perfil de cada uma
 # ---------------------------------------------------------------------------
 def so_supervisora(view):
-    """Quem não é supervisora volta para o Início (a terapeuta nem vê o botão Equipe)."""
+    """Quem não é supervisor volta para o Início (o terapeuta nem vê o botão Equipe)."""
     @wraps(view)
     def interna(request, *args, **kwargs):
         if not eh_gestor(request.user):
@@ -88,10 +88,10 @@ _AVISOS_EQUIPE = {
     'criado': ('ok', 'Perfil criado.'),
     'senha': ('ok', 'Senha atualizada.'),
     'ativado': ('ok', 'Perfil reativado.'),
-    'desativado': ('ok', 'Perfil desativado. A terapeuta não consegue mais entrar, e o histórico dela continua salvo.'),
+    'desativado': ('ok', 'Perfil desativado. O terapeuta não consegue mais entrar, e o histórico continua salvo.'),
     'excluido': ('ok', 'Perfil excluído.'),
-    'em_uso': ('erro', 'Esta terapeuta está com uma sessão aberta agora. Espere a sessão acabar e tente de novo.'),
-    'tem_sessoes': ('erro', 'Esta terapeuta tem sessões salvas. Desative o perfil, ou escolha apagar o perfil junto com as sessões.'),
+    'em_uso': ('erro', 'Este terapeuta está com uma sessão aberta agora. Espere a sessão acabar e tente de novo.'),
+    'tem_sessoes': ('erro', 'Este terapeuta tem sessões salvas. Desative o perfil, ou escolha apagar o perfil junto com as sessões.'),
     'sem_acao': ('erro', 'Este perfil não pode ser alterado por aqui.'),
 }
 
@@ -105,7 +105,7 @@ def _aviso_equipe(request):
 
 
 def _perfil_alvo(request, pk):
-    """Perfil de terapeuta mexível: existe, não é supervisora e não é a própria conta."""
+    """Perfil de terapeuta mexível: existe, não é supervisor e não é a própria conta."""
     fisio = Fisioterapeuta.objects.select_related('user').filter(pk=pk).first()
     if fisio is None:
         raise Http404('Perfil não encontrado.')
@@ -142,7 +142,7 @@ def equipe_novo(request):
 def equipe_perfil(request, pk):
     fisio, mexivel = _perfil_alvo(request, pk)
     if fisio.eh_super_fisio:
-        return redirect('equipe')                                      # supervisoras são geridas pelo /admin
+        return redirect('equipe')                                      # supervisores são geridas pelo /admin
     mostrar = request.GET.get('mostrar') == '1' and bool(fisio.senha_visivel)
     resposta = render(request, 'terapia/equipe_perfil.html', {
         'f': fisio, 'mexivel': mexivel, 'n_sessoes': equipe_logica.total_sessoes(fisio), 'aviso': _aviso_equipe(request),
@@ -320,6 +320,8 @@ def api_comando(request):
         r = programa.cancelar_espera(u)
     elif nome == 'encerrar_sessao':
         r = programa.encerrar_sessao(u)
+    elif nome == 'obter_evolucao':
+        r = programa.obter_evolucao(u, args.get('numero'), args.get('so_forma'))
     elif nome in ('anular', 'restaurar', 'obter_curva'):
         try:
             numero = int(args.get('numero'))

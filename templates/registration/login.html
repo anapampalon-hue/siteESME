@@ -12,7 +12,7 @@
         <p class="erro" role="alert">{{ form.non_field_errors.0 }}</p>
     {% endif %}
     {% if form.fields.username.choices|length <= 1 %}
-        <p class="aviso">Nenhuma fisioterapeuta cadastrada ainda. Peça à super fisioterapeuta para adicionar seu nome.</p>
+        <p class="aviso">Nenhum fisioterapeuta cadastrado ainda. Peça ao super fisioterapeuta para adicionar seu nome.</p>
     {% endif %}
 
     <label for="{{ form.username.id_for_label }}">Fisioterapeuta</label>

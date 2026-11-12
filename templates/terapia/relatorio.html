@@ -39,11 +39,23 @@
         .ficha .area { fill: rgba(52, 52, 168, 0.18); }
         .ficha .linha { fill: none; stroke: var(--espaco); stroke-width: 3; stroke-linejoin: round; }
         .ficha .eixo { stroke: var(--tinta); stroke-width: 1.5; }
+        .evolucao { break-inside: avoid; }
+        .evolucao svg, .ficha svg + svg { display: block; width: 100%; height: auto; max-height: 56mm; }
+        .ficha svg + svg { max-height: 44mm; margin-top: 0.3rem; }
+        .evo-antes { fill: none; stroke: var(--espaco); stroke-width: 3; stroke-dasharray: 9 6; stroke-linejoin: round; }
+        .evo-faixa { fill: rgba(52, 52, 168, 0.12); stroke: none; }
+        .evo-esta { fill: none; stroke: #1f9d55; stroke-width: 3.5; stroke-linejoin: round; }
+        .evo-atual { fill: none; stroke: #c4631a; stroke-width: 3; stroke-dasharray: 2 6; stroke-linecap: round; }
+        .evolucao .eixo, .ficha svg + svg .eixo { stroke: var(--tinta); stroke-width: 1.5; }
+        .evolucao text, .ficha svg + svg text { font: 11px "Segoe UI", sans-serif; fill: var(--tinta); }
         .ficha text { font: 11px "Segoe UI", sans-serif; fill: var(--tinta); }
         .rodape { margin-top: 1.2rem; font-weight: 700; }
         .estrelas { font-size: 13pt; letter-spacing: 0.05em; color: #b07d00; white-space: nowrap; }
         .nota-tent { margin: 0.3rem 0 0; padding: 0.35rem 0.6rem; white-space: pre-wrap; background: #f3f6fd; border-left: 4px solid var(--espaco); }
         .mrc-tab td:nth-child(2) { white-space: nowrap; }
+        .esc-tab { table-layout: fixed; }
+        .esc-tab th:first-child, .esc-tab td:first-child { width: 60%; }
+        .esc-tab td:nth-child(2) { white-space: nowrap; }
 
         @page { size: A4; margin: 12mm; }
         @media print {
@@ -137,16 +149,25 @@
         </table>
         {% endif %}
 
-        {% if r.escalas %}
-        <h2>Escalas aplicadas pela terapeuta</h2>
-        <table class="mrc-tab">
+        {% for e in r.escalas %}
+        <h2>{{ e.titulo }}</h2>
+        <p class="pseudo">{{ e.nota }}</p>
+        <table class="mrc-tab esc-tab">
+            <thead><tr><th>Medida</th><th>Resultado</th></tr></thead>
             <tbody>
-            {% for nome, valor in r.escalas %}
-                <tr><td><strong>{{ nome }}</strong></td><td>{{ valor }}</td></tr>
+            {% for medida, resultado in e.linhas %}
+                <tr><td>{{ medida }}</td><td>{{ resultado }}</td></tr>
             {% endfor %}
             </tbody>
         </table>
-        <p class="pseudo">Notas registradas pela terapeuta; o ESME não calcula essas escalas.</p>
+        {% endfor %}
+
+        {% if r.evolucao_svg %}
+        <section class="evolucao">
+        <h2>Evolução do paciente</h2>
+        {{ r.evolucao_svg|safe }}
+        <p class="pseudo">Velocidade média do movimento com o tempo de cada tentativa normalizado (0 a 100 %). Cada tentativa vale um voto na média.</p>
+        </section>
         {% endif %}
 
         {% if r.tentativas %}
@@ -158,6 +179,7 @@
             <p>Alcance: <strong>{{ t.alcance }}</strong> &nbsp; Fluidez: <strong>{{ t.fluidez }}</strong>{% if t.fluidez_motivo %} ({{ t.fluidez_motivo }}){% endif %}</p>
             {% if t.aval.avaliavel %}<p>Qualidade do movimento: <span class="estrelas">{{ t.aval.estrelas }}</span> &nbsp; Dor: <strong>{{ t.aval.dor }}</strong></p>{% endif %}
             {% if t.curva_svg %}{{ t.curva_svg|safe }}{% else %}<p><em>Sem curva para esta tentativa.</em></p>{% endif %}
+            {% if t.evo_svg %}{{ t.evo_svg|safe }}{% endif %}
             {% if t.aval.nota %}<p class="nota-tent"><strong>Anotação:</strong> {{ t.aval.nota }}</p>{% endif %}
         </section>
         {% endfor %}

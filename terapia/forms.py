@@ -8,7 +8,7 @@ class LoginFisioForm(AuthenticationForm):
     """Login em que a fisio ESCOLHE o nome numa lista (só as ativas) e digita a senha."""
 
     error_messages = {
-        'invalid_login': 'Senha incorreta. Se esqueceu, peça uma nova à super fisioterapeuta.',
+        'invalid_login': 'Senha incorreta. Se esqueceu, peça uma nova ao super fisioterapeuta.',
         'inactive': 'Este acesso está desativado.',
     }
 

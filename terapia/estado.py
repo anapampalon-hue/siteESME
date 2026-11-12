@@ -41,7 +41,7 @@ GOL_CM = 76
 PRAZO_CALCULO_S = 3.0   # escopo: espera as amostras do batedor por até ~3 s
 GRAVAR_AMOSTRAS = True   # TESTES: guarda as amostras brutas de cada tentativa em <projeto>/gravacoes/ (ver _gravar_tentativa). Em uso real, False.
 GRAVAR_ANTES_S, GRAVAR_DEPOIS_S = 2.0, 1.0   # quanto antes do início e depois do fim da tentativa entra na gravação
-COMENTARIO_MAX = 2000   # letras do comentário da terapeuta
+COMENTARIO_MAX = 2000   # letras do comentário do terapeuta
 NOTA_MAX = 1000         # letras da anotação de uma tentativa (ou de um critério do MRC)
 GRUPO_MRC_MAX = 60      # letras do nome do grupo muscular no MRC
 COD_GOL = 9         # Tentativa.bobinas_atingidas == 9 significa "chegou ao gol"
@@ -370,7 +370,7 @@ class Programa:
     # ================= comandos (vindos da tela) =================
     def preparar_sessao(self, user, paciente, data_iso, consentimento=True):
         """`consentimento` = o "check" do TCLE na Nova sessão. Sem ele a sessão é ANÔNIMA: o nome e a data digitados
-        são ignorados (nome "Anônimo", sem data, sem código) e tudo é apagado quando a terapeuta fecha a sessão."""
+        são ignorados (nome "Anônimo", sem data, sem código) e tudo é apagado quando o terapeuta fecha a sessão."""
         with self._lock:
             fisio = getattr(user, 'fisioterapeuta', None)
             if fisio is None or not fisio.ativo:
@@ -490,9 +490,30 @@ class Programa:
             escala = max((c.get('v_max', 0) for c in todas if c), default=t.curva['v_max'])
             return {'ok': True, 'curva': {'pontos': t.curva['pontos'], 'escala_max': escala}}
 
+    def obter_evolucao(self, user, numero=None, so_forma=False):
+        """Linha de evolução do paciente. Com `numero`: a curva normalizada dessa tentativa + a média das sessões ANTERIORES
+        (popup da tentativa). Sem `numero`: as 3 linhas da sessão (antes, esta sessão, atualizada)."""
+        from . import evolucao
+        with self._lock:
+            sid = self.sessao_id or self.leitura_id
+            sessao = Sessao.objects.filter(pk=sid).first() if sid else None
+            if sessao is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._pode_ver(user, sessao):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            so_forma = bool(so_forma)
+            ev = evolucao.evolucao_da_sessao(sessao, so_forma)
+            if numero is not None:
+                t = Tentativa.objects.filter(sessao=sessao, numero=numero, finalizada_em__isnull=False).first()
+                if t is None:
+                    return {'ok': False, 'erro': 'nao_encontrado'}
+                y = evolucao.normalizar(t.curva, so_forma) if t.curva and t.pk not in self._pend else None
+                return {'ok': True, 'tentativa': y, 'antes': ev['antes'], 'sessoes_antes': ev['sessoes_antes']}
+            return {'ok': True, **ev}
+
     # ================= comentário, histórico e sessões antigas =================
     def salvar_comentario(self, user, texto):
-        """Comentário livre e OPCIONAL da terapeuta, na sessão aberta ou numa sessão aberta do histórico."""
+        """Comentário livre e OPCIONAL do terapeuta, na sessão aberta ou numa sessão aberta do histórico."""
         with self._lock:
             sid = self.sessao_id or self.leitura_id
             s = Sessao.objects.filter(pk=sid).first() if sid else None
@@ -581,7 +602,7 @@ class Programa:
             return {'ok': True}
 
     def salvar_escalas(self, user, fma, wmft_tempo, wmft_nota):
-        """Escalas aplicadas pela terapeuta (opcionais): Fugl-Meyer (total 0 a 66, inteiro) e Wolf Motor (tempo médio em
+        """Escalas aplicadas pelo terapeuta (opcionais): Fugl-Meyer (total 0 a 66, inteiro) e Wolf Motor (tempo médio em
         segundos de 0 a 120 e nota média de 0 a 5, com 1 casa). None ou vazio = não preenchido. O Wolf Motor só entra
         no relatório com os dois valores."""
         def numero(v, maximo, inteiro):
@@ -616,7 +637,7 @@ class Programa:
             return {'ok': True}
 
     def excluir_sessao(self, user, pk):
-        """Exclui DE VEZ uma sessão do histórico (com tentativas, curvas, avaliações e MRC). Só o gestor (supervisora
+        """Exclui DE VEZ uma sessão do histórico (com tentativas, curvas, avaliações e MRC). Só o gestor (supervisor
         ou superadmin): a tela esconde o botão, mas é ESTE teste que vale. Depois compacta o banco para os dados
         apagados não ficarem no arquivo."""
         with self._lock:
@@ -730,8 +751,8 @@ class Programa:
 
     def transferir_sessoes(self, user, pk, destino_id, escopo, autora_ve):
         """Só o gestor. Passa a responsabilidade (quem vê e edita) de UMA sessão ou do PACIENTE INTEIRO (todas as sessões
-        com o mesmo código e a mesma responsável) para outra terapeuta ativa. Quem realizou a sessão não muda.
-        `autora_ve`: a terapeuta que sai continua vendo as sessões que ela realizou (só consulta) ou não."""
+        com o mesmo código e a mesma responsável) para outro terapeuta ativo. Quem realizou a sessão não muda.
+        `autora_ve`: o terapeuta que sai continua vendo as sessões que ela realizou (só consulta) ou não."""
         if not eh_gestor(user):
             return {'ok': False, 'erro': 'sem_permissao'}
         if escopo not in ('sessao', 'paciente') or not isinstance(autora_ve, bool):
@@ -756,7 +777,7 @@ class Programa:
                 for x in sessoes:
                     if x.realizada_por_id is None:
                         x.realizada_por_id = origem_id
-                    # a marca vale para as sessões que a terapeuta que sai realizou; as de outras autoras ficam como estavam
+                    # a marca vale para as sessões que o terapeuta que sai realizou; as de outras autoras ficam como estavam
                     if x.realizada_por_id == origem_id:
                         x.autora_ve = autora_ve
                     if x.realizada_por_id == destino.pk:
@@ -866,8 +887,8 @@ class Programa:
         return bool(fisio and fisio.pk == fisio_id) or user.is_superuser
 
     def _pode_ver(self, user, sessao):
-        """Ler uma sessão (histórico, curva, relatório): a responsável, o gestor e, só para consulta, a terapeuta que a
-        realizou quando a sessão foi transferida e a supervisora deixou ela continuar vendo."""
+        """Ler uma sessão (histórico, curva, relatório): a responsável, o gestor e, só para consulta, o terapeuta que a
+        realizou quando a sessão foi transferida e o supervisor deixou ela continuar vendo."""
         if self._eh_dono(user, sessao.fisioterapeuta_id) or eh_gestor(user):
             return True
         fisio = getattr(user, 'fisioterapeuta', None)
@@ -878,7 +899,7 @@ class Programa:
         return not self._eh_dono(user, sessao.fisioterapeuta_id)
 
     def _codigo_do_paciente(self, fisio, nome):
-        """Código do paciente para uma sessão nova. O código nasce do nome + da conta da terapeuta; se este paciente
+        """Código do paciente para uma sessão nova. O código nasce do nome + da conta do terapeuta; se este paciente
         chegou por transferência, as sessões dele já têm um código: reaproveita para o histórico não se partir em dois."""
         alvo = normalizar_nome(nome)
         for n, cod in Sessao.objects.ativas().filter(fisioterapeuta=fisio, anonima=False).exclude(codigo_paciente='').values_list('paciente_nome', 'codigo_paciente'):

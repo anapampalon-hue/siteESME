@@ -2,10 +2,12 @@
    Regras: a tela NÃO calcula nada e NUNCA usa innerHTML com texto vindo de fora
    (o nome do paciente é digitado pela fisio): só textContent. */
 
-import { T } from './textos.js?v=7';
-import * as dados from './dados.js?v=6';
+import { T } from './textos.js?v=8';
+import * as dados from './dados.js?v=7';
 
-const { iniciar, assinar, enviarComando, obterCurva } = dados;
+const { iniciar, assinar, enviarComando, obterCurva, obterEvolucao } = dados;
+let evoLigada = true;        // caixa "Linha de evolução" do Detalhe
+let evoSoForma = false;      // "só o formato" (velocidade ÷ pico)
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -18,7 +20,7 @@ let comTimer = null;         // espera ~0,8 s depois da última letra para salva
 let comSalvando = false;
 let comIdSessao = null;      // comentário pertence a esta sessão (se mudar de sessão, recarrega o texto)
 const NOTA_MAX = 1000;
-let soConsulta = false;      // a sessão aberta é de outra terapeuta: tudo trava, só dá para ver
+let soConsulta = false;      // a sessão aberta é de outro terapeuta: tudo trava, só dá para ver
 let notaNumero = null;       // tentativa a que a anotação digitada pertence (vale mesmo se a janela mudar de tentativa)
 let notaTimer = null;
 let notaSalvando = false;
@@ -183,7 +185,7 @@ function renderLista(tentativas) {
   }
 }
 
-/* ---------- comentário da terapeuta (opcional) ---------- */
+/* ---------- comentário do terapeuta (opcional) ---------- */
 
 function atualizarContador() {
   const n = $('com-texto').value.length;
@@ -262,6 +264,7 @@ function renderRodape(e) {
   $('b-concluir').disabled = pend > 0;
 
   // sessão anônima: lembra que ela não fica salva (e avisa antes de "Fechar" apagar tudo)
+  $('evolucao').hidden = !!s.anonima || !s.tentativas.some((x) => x.estado === 'concluida');
   $('aviso-anonima').hidden = !s.anonima;
   $('aviso-anonima').textContent = s.anonima ? (encerrada ? T.sessao.anonimaFechar : T.sessao.anonima) : '';
 
@@ -363,12 +366,123 @@ function desenharCurva({ pontos, escala_max }, numero) {
   }
   add('text', { x: (ml + W - mr) / 2, y: H - 6, 'text-anchor': 'middle' }, 'tempo (s)');
   add('text', { x: 14, y: (mt + y(0)) / 2, 'text-anchor': 'middle', transform: `rotate(-90 14 ${(mt + y(0)) / 2})` }, 'velocidade');
-  return svg;
+  return el('div', { className: 'ses-grafico' }, svg, legenda([{ tipo: 'area', classe: 'linha', rotulo: T.evolucao.velocidadeBatedor }]));
 }
 
-/** Sessão de outra terapeuta: campos e botões de alteração ficam desligados (o programa também recusa). */
+/** Legenda dos gráficos: cada item é { tipo?: 'area' | 'faixa', classe, rotulo }. Fica logo abaixo do desenho. */
+function legenda(itens) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const ul = el('ul', { className: 'ses-legenda' });
+  itens.forEach(({ tipo, classe, rotulo }) => {
+    const sw = document.createElementNS(NS, 'svg');
+    sw.setAttribute('viewBox', '0 0 44 14');
+    sw.setAttribute('aria-hidden', 'true');
+    const add = (tag, attrs) => { const n = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v)); sw.append(n); };
+    if (tipo === 'faixa') add('rect', { class: 'evo-faixa', x: 2, y: 1, width: 40, height: 12 });
+    else {
+      if (tipo === 'area') add('rect', { class: 'area', x: 2, y: 2, width: 40, height: 12 });
+      add('line', { class: classe, x1: 2, y1: tipo === 'area' ? 2 : 7, x2: 42, y2: tipo === 'area' ? 2 : 7 });
+    }
+    ul.append(el('li', {}, sw, el('span', { textContent: rotulo })));
+  });
+  return ul;
+}
+
+/** Gráfico em tempo normalizado (0 a 100 %). series: [{ y: [100 valores], faixa?: [dp], classe, rotulo? }]. */
+function desenharEvolucao(series, rotuloAria) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const W = 640, H = 250, ml = 40, mr = 16, mt = 14, mb = 44;
+  const todos = series.flatMap((x) => x.y.map((v, i) => v + (x.faixa ? x.faixa[i] : 0)));
+  const vmax = Math.max(...todos, 0.001) * 1.05;
+  const x = (i) => ml + (i / 99) * (W - ml - mr);
+  const y = (v) => H - mb - (v / vmax) * (H - mb - mt);
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', `Velocidade em função do tempo normalizado: ${rotuloAria}`);
+  const add = (tag, attrs, texto) => {
+    const n = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v));
+    if (texto != null) n.textContent = texto;
+    svg.append(n);
+  };
+  series.forEach((sr) => {
+    if (!sr.y.length) return;
+    if (sr.faixa) {
+      const cima = sr.y.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v + sr.faixa[i]).toFixed(1)}`).join(' ');
+      const baixo = sr.y.map((v, i) => `L${x(99 - i).toFixed(1)} ${y(Math.max(0, sr.y[99 - i] - sr.faixa[99 - i])).toFixed(1)}`).join(' ');
+      add('path', { class: 'evo-faixa', d: `${cima} ${baixo} Z` });
+    }
+  });
+  series.forEach((sr) => {
+    if (!sr.y.length) return;
+    add('path', { class: sr.classe, d: sr.y.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ') });
+  });
+  add('line', { class: 'eixo', x1: ml, y1: mt, x2: ml, y2: y(0) });
+  add('line', { class: 'eixo', x1: ml, y1: y(0), x2: W - mr, y2: y(0) });
+  [0, 20, 40, 60, 80, 100].forEach((p) => {
+    const xi = ml + (p / 100) * (W - ml - mr);
+    add('line', { class: 'eixo', x1: xi, y1: y(0), x2: xi, y2: y(0) + 5 });
+    add('text', { x: xi, y: y(0) + 20, 'text-anchor': 'middle' }, String(p));
+  });
+  add('text', { x: (ml + W - mr) / 2, y: H - 6, 'text-anchor': 'middle' }, T.evolucao.tempoPct);
+  add('text', { x: 14, y: (mt + y(0)) / 2, 'text-anchor': 'middle', transform: `rotate(-90 14 ${(mt + y(0)) / 2})` }, 'velocidade');
+  const itens = series.filter((sr) => sr.y.length).map((sr) => ({ classe: sr.classe, rotulo: sr.rotulo }));
+  if (series.some((sr) => sr.faixa)) itens.push({ tipo: 'faixa', rotulo: T.evolucao.faixa });
+  return el('div', { className: 'ses-grafico' }, svg, legenda(itens));
+}
+
+/** Caixinhas do Detalhe: só aparecem se houver histórico do paciente. */
+function preencherOpcoesEvolucao(antes, sessoesAntes, anonima) {
+  const box = $('det-evo');
+  box.hidden = false;
+  const tem = !!antes;
+  $('evo-linha').parentElement.hidden = !tem;
+  $('evo-forma-wrap').hidden = !tem || !evoLigada;
+  $('evo-linha').checked = evoLigada;
+  $('evo-forma').checked = evoSoForma;
+  if (tem) $('evo-linha-txt').textContent = T.evolucao.linha(antes.n, sessoesAntes);
+  $('evo-forma-txt').textContent = T.evolucao.forma;
+  const aviso = $('evo-aviso');
+  aviso.hidden = tem;
+  aviso.textContent = anonima ? T.evolucao.anonima : T.evolucao.semHistorico;
+}
+
+/** Gráfico final: antes da sessão, esta sessão e evolução atualizada, cada uma com sua caixinha. */
+const evgLigadas = { antes: true, esta: true, atualizada: true };
+async function abrirEvolucao() {
+  $('dlg-evolucao').showModal();
+  await redesenharEvolucao();
+}
+async function redesenharEvolucao() {
+  const area = $('evg-grafico');
+  area.replaceChildren(avisoNoQuadro(T.detalhe.carregando, true));
+  const ev = await obterEvolucao(null, evoSoForma);
+  if (!ev || !ev.esta) {
+    area.replaceChildren(avisoNoQuadro(T.evolucao.semDados, false));
+    $('evg-opcoes').replaceChildren();
+    return;
+  }
+  const defs = [
+    ['antes', ev.antes, 'evo-antes', ev.antes && T.evolucao.antes(ev.antes.n, ev.sessoes_antes)],
+    ['esta', ev.esta, 'evo-esta', T.evolucao.esta(ev.esta.n)],
+    ['atualizada', ev.atualizada, 'evo-atual', ev.atualizada && T.evolucao.atualizada(ev.atualizada.n)],
+  ].filter((d) => d[1]);
+  const series = defs.filter((d) => evgLigadas[d[0]]).map((d) => ({ y: d[1].y, classe: d[2], rotulo: d[3] }));
+  area.replaceChildren(series.length ? desenharEvolucao(series, T.evolucao.tituloGrafico) : avisoNoQuadro(T.evolucao.semDados, false));
+  const caixas = defs.map(([chave, , classe, rotulo]) => {
+    const cx = el('input', { type: 'checkbox', checked: evgLigadas[chave] });
+    cx.addEventListener('change', () => { evgLigadas[chave] = cx.checked; redesenharEvolucao(); });
+    return el('label', {}, cx, ` ${rotulo}`);
+  });
+  const forma = el('input', { type: 'checkbox', checked: evoSoForma });
+  forma.addEventListener('change', () => { evoSoForma = forma.checked; redesenharEvolucao(); });
+  $('evg-opcoes').replaceChildren(...caixas, el('label', {}, forma, ` ${T.evolucao.forma}`));
+}
+
+/** Sessão de outro terapeuta: campos e botões de alteração ficam desligados (o programa também recusa). */
 function travarSeConsulta() {
-  document.querySelectorAll('#com-texto, #mrc input, #mrc textarea, #mrc button, #fma-total, #fma-limpar, #wmft-tempo, #wmft-nota, #wmft-limpar, #aval-estrelas button, #aval-bolinhas input, #aval-nota, #det-anular, #b-concluir')
+  document.querySelectorAll('#com-texto, #mrc input, #mrc textarea, #mrc button, #fma-total, #fma-limpar, #wmft-tempo, #wmft-nota, #wmft-limpar, #aval-estrelas button, #aval-bolinhas input, #aval-nota, #b-concluir')
     .forEach((c) => { c.disabled = soConsulta || (c.id === 'b-concluir' && c.disabled); });
   $('mrc').classList.toggle('so-consulta', soConsulta);
 }
@@ -408,10 +522,9 @@ async function preencherDetalhe() {
   const i = numeros.indexOf(t.numero);
   $('det-anterior').disabled = i <= 0;
   $('det-proxima').disabled = i >= numeros.length - 1;
-  $('det-anular').textContent = t.anulada ? T.acoes.restaurar : T.acoes.anular;
 
   // o quadro do gráfico só é refeito quando algo dele mudou (o estado chega a cada meio segundo)
-  const chave = `${t.numero}|${t.estado}|${t.fluidez ? t.fluidez.nivel : ''}`;
+  const chave = `${t.numero}|${t.estado}|${t.fluidez ? t.fluidez.nivel : ''}|${evoLigada}|${evoSoForma}`;
   if (chave === detalheChave) return;
   detalheChave = chave;
 
@@ -423,8 +536,18 @@ async function preencherDetalhe() {
   } else {
     area.replaceChildren(avisoNoQuadro(T.detalhe.carregando, true));
     const curva = await obterCurva(t.numero);
+    const evo = (!estado.sessao.anonima && curva) ? await obterEvolucao(t.numero, evoSoForma) : null;
     if (detalheNumero !== t.numero || detalheChave !== chave) return;   // o usuário já trocou de tentativa
-    area.replaceChildren(curva ? desenharCurva(curva, t.numero) : avisoNoQuadro(T.detalhe.semGrafico, false));
+    const antes = evo && evo.antes;
+    preencherOpcoesEvolucao(antes, evo ? evo.sessoes_antes : 0, !!estado.sessao.anonima);
+    if (curva && evoLigada && antes && evo.tentativa) {
+      area.replaceChildren(desenharEvolucao([
+        { y: antes.y, faixa: antes.dp, classe: 'evo-antes', rotulo: T.evolucao.mediaAnteriores(antes.n) },
+        { y: evo.tentativa, classe: 'evo-esta', rotulo: T.evolucao.tentativa(t.numero) },
+      ], T.evolucao.tentativa(t.numero)));
+    } else {
+      area.replaceChildren(curva ? desenharCurva(curva, t.numero) : avisoNoQuadro(T.detalhe.semGrafico, false));
+    }
   }
 }
 
@@ -750,6 +873,18 @@ function renderEscalas(s) {
   marcasEscalas();
 }
 
+function ligarEvolucao() {
+  $('evo-titulo').textContent = T.evolucao.titulo;
+  $('evo-dica').textContent = T.evolucao.dica;
+  $('evo-abrir').textContent = T.evolucao.abrir;
+  $('evg-titulo').textContent = T.evolucao.tituloGrafico;
+  $('evg-aviso').textContent = T.evolucao.aviso;
+  $('evo-abrir').addEventListener('click', abrirEvolucao);
+  $('dlg-evolucao').querySelector('[data-fechar]').addEventListener('click', () => $('dlg-evolucao').close());
+  $('evo-linha').addEventListener('change', (e) => { evoLigada = e.target.checked; preencherDetalhe(); });
+  $('evo-forma').addEventListener('change', (e) => { evoSoForma = e.target.checked; preencherDetalhe(); });
+}
+
 function ligarEscalas() {
   document.querySelectorAll('.ses-escala-btn').forEach((b) => {
     b.addEventListener('click', () => $(b.dataset.dialogo).showModal());
@@ -780,17 +915,15 @@ function ligarMrc() {
 /* ---------- eventos da página ---------- */
 
 function ligarEventos() {
+  document.querySelectorAll('dialog .ses-btn-fechar').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
   $('det-fechar').addEventListener('click', () => $('detalhe').close());
   $('detalhe').addEventListener('close', () => { descarregarNota(); detalheNumero = null; detalheChave = null; });
   ligarAvaliacao();
   ligarMrc();
   ligarEscalas();
+  ligarEvolucao();
   $('det-anterior').addEventListener('click', () => irParaVizinha(-1));
   $('det-proxima').addEventListener('click', () => irParaVizinha(1));
-  $('det-anular').addEventListener('click', () => {
-    const t = estado.sessao.tentativas.find((x) => x.numero === detalheNumero);
-    if (t) enviarComando(t.anulada ? 'restaurar' : 'anular', { numero: t.numero });
-  });
   $('detalhe').addEventListener('keydown', (ev) => {
     if (ev.key === 'ArrowLeft') irParaVizinha(-1);
     if (ev.key === 'ArrowRight') irParaVizinha(1);

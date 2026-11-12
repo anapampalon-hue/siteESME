@@ -1,14 +1,14 @@
 """
-equipe.py — o que a página Equipe (só da supervisora) faz com os perfis das terapeutas.
+equipe.py — o que a página Equipe (só do supervisor) faz com os perfis dos terapeutas.
 
   * criar_perfil     : nome + senha  ->  login (User) + perfil (Fisioterapeuta, papel "fisio")
-  * definir_senha    : a supervisora digita uma nova senha
+  * definir_senha    : o supervisor digita uma nova senha
   * alternar_ativo   : desativar (bolinha cinza, não consegue entrar, histórico mantido) / reativar
-  * excluir          : só o perfil (se não tiver sessões) ou o perfil E todas as sessões dela
+  * excluir          : só o perfil (se não tiver sessões) ou o perfil E todas as sessões desse perfil
 
-A senha entra em duas formas: o hash do Django (é com ele que a terapeuta entra) e uma cópia CRIPTOGRAFADA
-(Fisioterapeuta.senha_visivel, mesma chave dos nomes dos pacientes) para a supervisora poder rever no perfil.
-Supervisoras (papel super_fisio) não são mexidas por aqui: continuam sendo geridas pelo /admin.
+A senha entra em duas formas: o hash do Django (é com ele que o terapeuta entra) e uma cópia CRIPTOGRAFADA
+(Fisioterapeuta.senha_visivel, mesma chave dos nomes dos pacientes) para o supervisor poder rever no perfil.
+Supervisores (papel super_fisio) não são mexidas por aqui: continuam sendo geridas pelo /admin.
 """
 import re
 import unicodedata
@@ -22,7 +22,7 @@ SENHA_MIN, SENHA_MAX = 6, 64
 NOME_MAX = 150
 
 ERROS = {
-    'nome_vazio': 'Digite o nome da terapeuta.',
+    'nome_vazio': 'Digite o nome do terapeuta.',
     'nome_longo': f'O nome pode ter no máximo {NOME_MAX} letras.',
     'nome_repetido': 'Já existe um perfil com esse nome. Acrescente um sobrenome ou uma inicial.',
     'senha_curta': f'A senha precisa ter pelo menos {SENHA_MIN} caracteres.',

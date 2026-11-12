@@ -54,7 +54,7 @@
     </div>
 </div>
 
-{# confirmação de exclusão definitiva (só a supervisora vê o botão que abre esta janela) #}
+{# confirmação de exclusão definitiva (só o supervisor vê o botão que abre esta janela) #}
 <dialog id="excluir-dialogo" class="his-dialogo" aria-labelledby="excluir-titulo">
     <h2 id="excluir-titulo"></h2>
     <p id="excluir-texto"></p>
@@ -68,7 +68,7 @@
 {# menu "⋯" das ações (um só, reposicionado em cada linha) #}
 <div id="his-menu" class="his-menu" role="menu" hidden></div>
 
-{# transferir sessão(ões) para outra terapeuta (só a supervisora) #}
+{# transferir sessão(ões) para outro terapeuta (só o supervisor) #}
 <dialog id="transf-dialogo" class="his-transf" aria-labelledby="transf-titulo">
     <button type="button" id="transf-x" class="btn-quadrado his-transf-x" aria-label="Fechar" title="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="his-transf-caixa">
@@ -101,5 +101,5 @@
     </div>
 </dialog>
 
-<script type="module" src="{% static 'terapia/js/historico.js' %}?v=5"></script>
+<script type="module" src="{% static 'terapia/js/historico.js' %}?v=6"></script>
 {% endblock %}

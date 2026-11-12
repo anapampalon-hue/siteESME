@@ -64,7 +64,7 @@ class Fisioterapeuta(models.Model):
     papel = models.CharField(max_length=20, choices=Papel.choices, default=Papel.FISIO)
     # "Tirar da equipe" = ativo=False (some do login, mas o histórico dela é mantido)
     ativo = models.BooleanField(default=True)
-    # Senha definida pela supervisora na página Equipe, guardada CRIPTOGRAFADA só para ela poder rever no perfil.
+    # Senha definida pelo supervisor na página Equipe, guardada CRIPTOGRAFADA só para ela poder rever no perfil.
     # (O login usa o hash do Django; este campo é só para consulta. Vazio = perfil criado pelo /admin.)
     senha_visivel = CampoCriptografado(blank=True, default='')
 
@@ -97,7 +97,7 @@ class SessaoQuerySet(models.QuerySet):
 
     def visiveis_para(self, user):
         """Gestor vê todas. A fisio vê as sessões de que é responsável e, só para consulta, as que ela mesma realizou e
-        foram transferidas para outra terapeuta (quando a supervisora deixou `autora_ve` ligado)."""
+        foram transferidas para outro terapeuta (quando o supervisor deixou `autora_ve` ligado)."""
         if not user.is_authenticated:
             return self.none()
         if eh_gestor(user):
@@ -116,12 +116,12 @@ class Sessao(models.Model):
 
     fisioterapeuta = models.ForeignKey(
         Fisioterapeuta, on_delete=models.PROTECT, related_name='sessoes'
-    )  # RESPONSÁVEL atual: quem vê e edita a sessão (muda quando a supervisora transfere)
+    )  # RESPONSÁVEL atual: quem vê e edita a sessão (muda quando o supervisor transfere)
     # Quem de fato conduziu a sessão: nunca muda. É o que o relatório mostra. Nula só se a conta dela foi apagada.
     realizada_por = models.ForeignKey(
         Fisioterapeuta, on_delete=models.SET_NULL, null=True, blank=True, related_name='sessoes_realizadas'
     )
-    # Depois de uma transferência: True = a terapeuta que realizou continua vendo a sessão (só para consulta)
+    # Depois de uma transferência: True = o terapeuta que realizou continua vendo a sessão (só para consulta)
     autora_ve = models.BooleanField(default=True)
 
     # Digitados pela fisio na tela "Nova sessão" (não existe cadastro de paciente)
@@ -131,11 +131,11 @@ class Sessao(models.Model):
 
     # Pseudônimo do paciente (campos.codigo_paciente): é o que aparece no histórico, no CSV e, por padrão, no relatório
     codigo_paciente = models.CharField(max_length=12, blank=True, db_index=True)
-    # Comentário livre da terapeuta (opcional). Criptografado, porque pode citar dados do paciente.
+    # Comentário livre do terapeuta (opcional). Criptografado, porque pode citar dados do paciente.
     comentario = CampoCriptografado(blank=True, default='')
     comentario_em = models.DateTimeField(null=True, blank=True)
 
-    # Escalas aplicadas pela terapeuta (opcionais; só entram no relatório se preenchidas). O ESME não calcula essas notas.
+    # Escalas aplicadas pelo terapeuta (opcionais; só entram no relatório se preenchidas). O ESME não calcula essas notas.
     fma_total = models.PositiveSmallIntegerField(null=True, blank=True)    # Fugl-Meyer, membro superior: 0 a 66
     wmft_tempo = models.FloatField(null=True, blank=True)                  # Wolf Motor: tempo médio por tarefa, em s (0 a 120)
     wmft_nota = models.FloatField(null=True, blank=True)                   # Wolf Motor: nota média de qualidade (0 a 5)
@@ -303,7 +303,7 @@ class EventoBobina(models.Model):
 # FEEDBACK  (a AVALIAÇÃO que a fisio faz de uma tentativa concluída)
 # ──────────────────────────────────────────────────────────────
 class Feedback(models.Model):
-    """Criado quando a terapeuta salva a primeira resposta da janela "Avaliar".
+    """Criado quando o terapeuta salva a primeira resposta da janela "Avaliar".
     qualidade vazia = sem nota (no relatório aparecem 5 estrelas vazias); dor vazia = ainda não preenchida
     (enquanto houver tentativa concluída sem dor, a sessão não pode ser encerrada)."""
     QUALIDADE_MAX = 5
@@ -328,7 +328,7 @@ class Feedback(models.Model):
 
 
 # ──────────────────────────────────────────────────────────────
-# MRC  (força muscular da SESSÃO; opcional; a terapeuta adiciona até 5 critérios)
+# MRC  (força muscular da SESSÃO; opcional; o terapeuta adiciona até 5 critérios)
 # ──────────────────────────────────────────────────────────────
 MRC_MAX_ITENS = 5
 

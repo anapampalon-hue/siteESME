@@ -59,7 +59,7 @@
             <input type="hidden" name="ativo" value="{% if f.ativo %}0{% else %}1{% endif %}">
             <button type="submit" class="botao botao-claro">{% if f.ativo %}Desativar perfil{% else %}Reativar perfil{% endif %}</button>
         </form>
-        <p class="eq-dica">{% if f.ativo %}Desativada, ela não consegue entrar e some da lista de login, mas as sessões dela continuam salvas.{% else %}Reativada, ela volta a aparecer na lista de login.{% endif %}</p>
+        <p class="eq-dica">{% if f.ativo %}Desativado, o perfil não consegue entrar e some da lista de login, mas as sessões continuam salvas.{% else %}Reativado, o perfil volta a aparecer na lista de login.{% endif %}</p>
 
         <details class="eq-excluir">
             <summary class="botao eq-perigo">Excluir perfil</summary>

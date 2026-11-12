@@ -1,7 +1,7 @@
 """
 placas.py — conversa com as placas (mesa ESP32 e batedor ESP8266) pelo cabo USB, para gravar o Wi-Fi nelas.
 
-Quem conversa é o próprio programa (biblioteca pyserial): a terapeuta não abre prompt de comando nem escolhe porta.
+Quem conversa é o próprio programa (biblioteca pyserial): o terapeuta não abre prompt de comando nem escolhe porta.
 Protocolo (texto, uma linha por mensagem, 115200 bauds) — a descrição completa para o firmware está em protocolo-serial.md:
 
     notebook -> placa :  ESME?

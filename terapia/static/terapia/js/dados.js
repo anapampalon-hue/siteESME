@@ -24,7 +24,7 @@ const URL_ESTADO = '/api/estado/';
 const URL_COMANDO = '/api/comando/';
 const INTERVALO_MS = 500;
 // comandos que só consultam, só guardam o comentário ou mudam de página logo em seguida: não precisam reler o estado
-const SEM_ATUALIZAR = new Set(['sugestoes_nome', 'obter_curva', 'listar_historico', 'salvar_comentario', 'salvar_mrc', 'excluir_sessao', 'transferir_sessao', 'abrir_sessao', 'fechar_leitura', 'preparar_sessao', 'config_estado', 'config_placas', 'config_gravar', 'config_concluir']);
+const SEM_ATUALIZAR = new Set(['sugestoes_nome', 'obter_curva', 'obter_evolucao', 'listar_historico', 'salvar_comentario', 'salvar_mrc', 'excluir_sessao', 'transferir_sessao', 'abrir_sessao', 'fechar_leitura', 'preparar_sessao', 'config_estado', 'config_placas', 'config_gravar', 'config_concluir']);
 
 const ouvintes = new Set();
 let estado = null;          // último estado válido
@@ -118,4 +118,9 @@ export async function enviarComando(nome, args = {}) {
 export async function obterCurva(numero) {
   const r = await enviarComando('obter_curva', { numero });
   return r.ok ? r.curva : null;
+}
+/** Linha de evolução: com `numero`, { tentativa, antes, sessoes_antes }; sem, { antes, esta, atualizada, sessoes_antes }. */
+export async function obterEvolucao(numero, soForma = false) {
+  const r = await enviarComando('obter_evolucao', { numero, so_forma: soForma });
+  return r.ok ? r : null;
 }

@@ -1,8 +1,8 @@
 /* historico.js — página do Histórico: lista as sessões salvas (pedindo ao programa, nunca guardando nada no navegador).
-   PSEUDONIMIZAÇÃO: a lista mostra só o CÓDIGO do paciente (P-XXXXXX). O nome só chega do programa se a terapeuta
+   PSEUDONIMIZAÇÃO: a lista mostra só o CÓDIGO do paciente (P-XXXXXX). O nome só chega do programa se o terapeuta
    marcar "Mostrar nomes". Texto vindo de fora entra sempre por textContent (nunca innerHTML). */
 
-import { T } from './textos.js?v=7';
+import { T } from './textos.js?v=8';
 import { enviarComando } from './dados.js?v=6';
 
 const $ = (id) => document.getElementById(id);
@@ -74,7 +74,7 @@ async function abrir(id) {
   location.href = `${app.dataset.urlSessao}?de=historico`;
 }
 
-/* ---------- excluir (só a supervisora; o servidor confere de novo) ---------- */
+/* ---------- excluir (só o supervisor; o servidor confere de novo) ---------- */
 let excluindoId = null;
 
 function pedirExclusao(s) {
@@ -106,7 +106,7 @@ async function confirmarExclusao() {
   carregar();
 }
 
-/* ---------- transferir (só a supervisora; o servidor confere de novo) ---------- */
+/* ---------- transferir (só o supervisor; o servidor confere de novo) ---------- */
 let transferindo = null;          // a linha (sessão) da janela aberta
 let destinosAtuais = [];
 
@@ -229,7 +229,7 @@ function linha(s, ctx) {
   tr.append(tdCodigo);
   if (ctx.comFisio) {
     const tdFisio = el('td', {}, s.fisio || '');
-    // a terapeuta que só consulta vê "somente consulta"; quem edita (e a supervisora) vê quem realizou
+    // o terapeuta que só consulta vê "somente consulta"; quem edita (e o supervisor) vê quem realizou
     if (s.somente_consulta && !ctx.podeTransferir) tdFisio.append(el('br'), el('span', { className: 'his-etiqueta', textContent: T.historico.somenteConsulta }));
     else if (s.realizada_por) tdFisio.append(el('br'), el('span', { className: 'his-etiqueta', textContent: T.historico.realizadaPor(s.realizada_por) }));
     tr.append(tdFisio);

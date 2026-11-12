@@ -204,15 +204,16 @@ class EscalasTests(Base):
         self.assertEqual(dados_relatorio(self.s)['escalas'], [])
         self.prog.salvar_escalas(self.u1, 48, None, None)
         self.s.refresh_from_db()
-        self.assertEqual(dados_relatorio(self.s)['escalas'], [('Fugl-Meyer (membro superior)', '48 de 66')])
+        esc = dados_relatorio(self.s)['escalas']                                  # a frase ('nota') pode ser trocada à vontade
+        self.assertEqual([(e['titulo'], e['linhas']) for e in esc], [('Fugl-Meyer (membro superior)', [('Pontuação total', '48 de 66')])])
         self.prog.salvar_escalas(self.u1, '', 12.5, None)                          # WMFT só com os dois valores
         self.s.refresh_from_db()
         self.assertEqual(dados_relatorio(self.s)['escalas'], [])
         self.prog.salvar_escalas(self.u1, 48, 12.5, 3.5)
         self.s.refresh_from_db()
-        nomes = [n for n, _ in dados_relatorio(self.s)['escalas']]
-        self.assertEqual(nomes, ['Fugl-Meyer (membro superior)', 'Wolf Motor (WMFT)'])
-        self.assertIn('12,5 s', dados_relatorio(self.s)['escalas'][1][1])
+        esc = dados_relatorio(self.s)['escalas']
+        self.assertEqual([e['titulo'] for e in esc], ['Fugl-Meyer (membro superior)', 'Wolf Motor Function Test (WMFT)'])
+        self.assertEqual(esc[1]['linhas'], [('Tempo médio por tarefa', '12,5 s'), ('Nota média', '3,5 de 5')])
         self.assertNotIn('Fugl', gerar_csv(self.s))                                # escalas ficam só no relatório
 
     def test_comando_http(self):
@@ -405,3 +406,91 @@ class TransferirTests(Base):
         self.transferir()
         self.s.refresh_from_db()
         self.assertEqual(dados_relatorio(self.s)['fisio'], 'ana')
+
+
+class EvolucaoTests(Base):
+    COD = 'P-TESTE1'
+
+    def _curva(self, dur, v):
+        n = 11
+        return {'pontos': [[round(dur * i / (n - 1), 4), v] for i in range(n)], 'v_max': v}
+
+    def _tent(self, sessao, numero, dur, v, **kw):
+        return Tentativa.objects.create(sessao=sessao, numero=numero, resultado='gol', finalizada_em=timezone.now(),
+                                        curva=self._curva(dur, v), **kw)
+
+    def setUp(self):
+        super().setUp()
+        self.s.codigo_paciente = self.COD
+        self.s.save()
+        self.antiga = Sessao.objects.create(fisioterapeuta=self.f1, paciente_nome='Maria Silva', codigo_paciente=self.COD,
+                                            status=Sessao.Status.CONCLUIDA)
+        # a antiga precisa ter pk MENOR que a atual: recria a atual depois
+        self.s.delete()
+        self.s = Sessao.objects.create(fisioterapeuta=self.f1, paciente_nome='Maria Silva', codigo_paciente=self.COD,
+                                       status=Sessao.Status.EM_ANDAMENTO)
+        self.prog.sessao_id = self.s.pk
+
+    def test_normaliza_para_100_pontos_independente_da_duracao(self):
+        from .evolucao import normalizar
+        a, b = normalizar(self._curva(1.0, 2.0)), normalizar(self._curva(2.0, 2.0))
+        self.assertEqual(len(a), 100)
+        self.assertEqual(a, b)
+        self.assertEqual(normalizar(self._curva(1.0, 4.0), so_forma=True), [1.0] * 100)
+        self.assertIsNone(normalizar({'pontos': [[0, 1]]}))
+
+    def test_media_pesada_por_tentativa(self):
+        # antes: 14 tentativas a 0,75; hoje: 6 a 0,85 -> atualizada = (14*0,75 + 6*0,85)/20 = 0,78
+        for i in range(14):
+            self._tent(self.antiga, i + 1, 1.0 + i * 0.1, 0.75)
+        for i in range(6):
+            self._tent(self.s, i + 1, 1.5, 0.85)
+        r = self.prog.obter_evolucao(self.u1)
+        self.assertEqual((r['antes']['n'], r['esta']['n'], r['atualizada']['n']), (14, 6, 20))
+        self.assertAlmostEqual(r['antes']['y'][35], 0.75, 3)
+        self.assertAlmostEqual(r['esta']['y'][35], 0.85, 3)
+        self.assertAlmostEqual(r['atualizada']['y'][35], 0.78, 3)
+        self.assertEqual(r['sessoes_antes'], 1)
+
+    def test_ignora_anuladas_sem_curva_e_anonimas(self):
+        self._tent(self.antiga, 1, 1.0, 0.5, anulada=True)
+        Tentativa.objects.create(sessao=self.antiga, numero=2, resultado='gol', finalizada_em=timezone.now())
+        anon = Sessao.objects.create(fisioterapeuta=self.f1, paciente_nome='X', codigo_paciente=self.COD, anonima=True,
+                                     status=Sessao.Status.CONCLUIDA)
+        self._tent(anon, 1, 1.0, 0.5)
+        self._tent(self.s, 1, 1.0, 1.0)
+        r = self.prog.obter_evolucao(self.u1)
+        self.assertIsNone(r['antes'])
+        self.assertEqual(r['esta']['n'], 1)
+
+    def test_popup_da_tentativa_e_permissao(self):
+        self._tent(self.antiga, 1, 1.0, 0.5)
+        self._tent(self.s, 1, 2.0, 1.0)
+        r = self.prog.obter_evolucao(self.u1, 1)
+        self.assertEqual(len(r['tentativa']), 100)
+        self.assertEqual(r['antes']['n'], 1)
+        self.assertEqual(self.prog.obter_evolucao(self.u2, 1)['erro'], 'sem_permissao')
+        self.assertEqual(self.prog.obter_evolucao(self.u1, 9)['erro'], 'nao_encontrado')
+
+    def test_sessao_anonima_sem_historico(self):
+        self.s.anonima = True
+        self.s.save()
+        self._tent(self.s, 1, 1.0, 1.0)
+        self.assertIsNone(self.prog.obter_evolucao(self.u1)['antes'])
+
+
+class EvolucaoRelatorioTests(EvolucaoTests):
+    def test_relatorio_tem_evolucao_com_historico(self):
+        from .exportar import dados_relatorio
+        self._tent(self.antiga, 1, 1.0, 0.5)
+        self._tent(self.s, 1, 2.0, 1.0)
+        r = dados_relatorio(self.s)
+        self.assertIn('evo-atual', r['evolucao_svg'])
+        self.assertIn('evo-antes', r['tentativas'][0]['evo_svg'])
+
+    def test_relatorio_sem_historico_nao_tem_evolucao(self):
+        from .exportar import dados_relatorio
+        self._tent(self.s, 1, 2.0, 1.0)
+        r = dados_relatorio(self.s)
+        self.assertEqual(r['evolucao_svg'], '')
+        self.assertEqual(r['tentativas'][0]['evo_svg'], '')

@@ -3,7 +3,7 @@
 {% block title %}Sessão · ESME{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'terapia/css/sessao_pagina.css' %}?v=6">
 
 <div class="ses" id="app" data-url-inicio="{% url 'home' %}" data-url-espera="{% url 'espera_mesa' %}"
      data-url-historico="{% url 'historico' %}"
@@ -73,7 +73,7 @@
     {# sessão anônima (sem o "check" do TCLE): não fica salva #}
     <p id="aviso-anonima" class="ses-aviso-interrompida" role="status" hidden></p>
 
-    {# comentário da terapeuta: opcional, salva sozinho enquanto ela escreve #}
+    {# comentário do terapeuta: opcional, salva sozinho enquanto ela escreve #}
     <section class="ses-comentario" aria-labelledby="com-titulo">
         <div class="ses-comentario-topo">
             <h2 id="com-titulo">Comentários <small>(opcional)</small></h2>
@@ -88,7 +88,7 @@
         <p id="com-erro" class="ses-comentario-erro" role="alert" hidden></p>
     </section>
 
-    {# Escalas aplicadas pela terapeuta (opcionais): cada botão abre uma janelinha; só entra no relatório o que for preenchido #}
+    {# Escalas aplicadas pelo terapeuta (opcionais): cada botão abre uma janelinha; só entra no relatório o que for preenchido #}
     <section class="ses-escalas" id="escalas" aria-labelledby="esc-titulo">
         <div class="ses-comentario-topo">
             <h2 id="esc-titulo">Escalas aplicadas <small>(opcional)</small></h2>
@@ -98,6 +98,15 @@
             <button type="button" class="botao botao-claro ses-btn ses-escala-btn" id="esc-btn-mrc" data-dialogo="dlg-mrc">MRC<span class="esc-ok" hidden aria-label="preenchido">&#10003;</span></button>
             <button type="button" class="botao botao-claro ses-btn ses-escala-btn" id="esc-btn-fma" data-dialogo="dlg-fma">Fugl-Meyer<span class="esc-ok" hidden aria-label="preenchido">&#10003;</span></button>
             <button type="button" class="botao botao-claro ses-btn ses-escala-btn" id="esc-btn-wmft" data-dialogo="dlg-wmft">Wolf Motor (WMFT)<span class="esc-ok" hidden aria-label="preenchido">&#10003;</span></button>
+        </div>
+    </section>
+
+    {# evolução do paciente: gráfico de 3 linhas (antes da sessão, esta sessão, evolução atualizada) #}
+    <section class="ses-escalas" id="evolucao" aria-labelledby="evo-titulo" hidden>
+        <div class="ses-comentario-topo"><h2 id="evo-titulo"></h2></div>
+        <p class="ses-escalas-dica" id="evo-dica"></p>
+        <div class="ses-escalas-botoes">
+            <button type="button" class="botao botao-claro ses-btn" id="evo-abrir"></button>
         </div>
     </section>
 
@@ -135,8 +144,14 @@
         <dt>Fluidez:</dt><dd id="det-fluidez"></dd>
     </dl>
     <div id="det-curva" class="ses-det-curva" aria-live="polite"></div>
+    {# linha de evolução: média (com o tempo normalizado, 0 a 100 %) das tentativas das sessões anteriores do paciente #}
+    <div id="det-evo" class="ses-evo-opcoes" hidden>
+        <label><input type="checkbox" id="evo-linha"> <span id="evo-linha-txt"></span></label>
+        <label id="evo-forma-wrap"><input type="checkbox" id="evo-forma"> <span id="evo-forma-txt"></span></label>
+        <p class="ses-escala-ajuda" id="evo-aviso" hidden></p>
+    </div>
 
-    {# avaliação da terapeuta: estrelas (opcional), dor (obrigatória) e anotação (opcional) #}
+    {# avaliação do terapeuta: estrelas (opcional), dor (obrigatória) e anotação (opcional) #}
     <section class="ses-aval" id="det-aval" aria-label="Avaliação da tentativa">
         <div class="ses-aval-linha">
             <span class="ses-aval-rotulo" id="aval-q-rotulo"></span>
@@ -163,11 +178,26 @@
     </section>
     <p id="aval-sem" class="ses-aval-sem" hidden></p>
     <p class="ses-aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
-    <footer>
-        <button type="button" id="det-anterior" class="botao botao-claro ses-btn">&lt; Anterior</button>
-        <button type="button" id="det-anular" class="botao botao-claro ses-btn">Anular</button>
-        <button type="button" id="det-proxima" class="botao botao-claro ses-btn">Próxima &gt;</button>
+    <footer class="ses-det-pe">
+        <span aria-hidden="true"></span>
+        <div class="ses-det-nav">
+            <button type="button" id="det-anterior" class="botao botao-claro ses-btn">&lt; Anterior</button>
+            <button type="button" id="det-proxima" class="botao botao-claro ses-btn">Próxima &gt;</button>
+        </div>
+        <button type="button" class="botao botao-claro ses-btn ses-btn-fechar">Fechar</button>
     </footer>
+    </div>
+</dialog>
+
+{# ---------- gráfico de evolução do paciente ---------- #}
+<dialog id="dlg-evolucao" class="ses-detalhe" aria-labelledby="evg-titulo">
+    <button type="button" class="btn-quadrado ses-det-x" data-fechar aria-label="Fechar" title="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="ses-det-caixa">
+        <header><h2 id="evg-titulo"></h2></header>
+        <div id="evg-grafico" class="ses-det-curva" aria-live="polite"></div>
+        <div class="ses-evo-opcoes" id="evg-opcoes"></div>
+        <p class="ses-aviso-fixo" id="evg-aviso"></p>
+        <footer><button type="button" class="botao botao-claro ses-btn ses-btn-fechar">Fechar</button></footer>
     </div>
 </dialog>
 
@@ -189,6 +219,7 @@
         <p id="mrc-erro" class="ses-comentario-erro" role="alert" hidden></p>
     </section>
 
+        <footer><button type="button" class="botao botao-claro ses-btn ses-btn-fechar">Fechar</button></footer>
     </div>
 </dialog>
 
@@ -206,7 +237,7 @@
         <p class="ses-escala-ajuda" id="fma-dica"></p>
         <p id="fma-erro" class="ses-comentario-erro" role="alert" hidden></p>
         <p class="ses-aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
-        <footer><button type="button" id="fma-limpar" class="botao botao-claro ses-btn">Limpar</button></footer>
+        <footer><button type="button" id="fma-limpar" class="botao botao-claro ses-btn">Limpar</button><button type="button" class="botao botao-claro ses-btn ses-btn-fechar">Fechar</button></footer>
     </div>
 </dialog>
 
@@ -229,9 +260,9 @@
         <p class="ses-escala-ajuda" id="wmft-dica"></p>
         <p id="wmft-erro" class="ses-comentario-erro" role="alert" hidden></p>
         <p class="ses-aviso-fixo">Indicador de apoio; não substitui a avaliação clínica.</p>
-        <footer><button type="button" id="wmft-limpar" class="botao botao-claro ses-btn">Limpar</button></footer>
+        <footer><button type="button" id="wmft-limpar" class="botao botao-claro ses-btn">Limpar</button><button type="button" class="botao botao-claro ses-btn ses-btn-fechar">Fechar</button></footer>
     </div>
 </dialog>
 
-<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=8"></script>
+<script type="module" src="{% static 'terapia/js/sessao.js' %}?v=10"></script>
 {% endblock %}

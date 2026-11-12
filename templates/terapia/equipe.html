@@ -28,9 +28,9 @@
             <tbody>
             {% for f in fisios %}
                 <tr class="{% if not f.ativo %}eq-inativa{% endif %}">
-                    <td><span class="eq-situacao"><span class="eq-ponto {% if f.ativo %}eq-ponto-ativo{% endif %}" aria-hidden="true"></span>{% if f.ativo %}Ativa{% else %}Desativada{% endif %}</span></td>
+                    <td><span class="eq-situacao"><span class="eq-ponto {% if f.ativo %}eq-ponto-ativo{% endif %}" aria-hidden="true"></span>{% if f.ativo %}Ativo{% else %}Desativado{% endif %}</span></td>
                     <td class="eq-nome">{{ f.nome }}</td>
-                    <td>{% if f.eh_super_fisio %}Supervisora{% else %}Fisioterapeuta{% endif %}</td>
+                    <td>{% if f.eh_super_fisio %}Supervisor{% else %}Fisioterapeuta{% endif %}</td>
                     <td>{{ f.n_sessoes }}</td>
                     <td>{% if f.user.last_login %}{{ f.user.last_login|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
                     <td class="eq-acoes">
