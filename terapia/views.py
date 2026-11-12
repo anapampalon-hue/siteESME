@@ -346,6 +346,8 @@ def api_comando(request):
         r = programa.salvar_avaliacao(u, numero, {k: args[k] for k in ('qualidade', 'dor', 'nota') if k in args})
     elif nome == 'salvar_mrc':
         r = programa.salvar_mrc(u, args.get('itens'))
+    elif nome == 'salvar_escalas':
+        r = programa.salvar_escalas(u, args.get('fma'), args.get('wmft_tempo'), args.get('wmft_nota'))
     elif nome == 'excluir_sessao':
         try:
             r = programa.excluir_sessao(u, int(args.get('id')))

@@ -135,6 +135,11 @@ class Sessao(models.Model):
     comentario = CampoCriptografado(blank=True, default='')
     comentario_em = models.DateTimeField(null=True, blank=True)
 
+    # Escalas aplicadas pela terapeuta (opcionais; só entram no relatório se preenchidas). O ESME não calcula essas notas.
+    fma_total = models.PositiveSmallIntegerField(null=True, blank=True)    # Fugl-Meyer, membro superior: 0 a 66
+    wmft_tempo = models.FloatField(null=True, blank=True)                  # Wolf Motor: tempo médio por tarefa, em s (0 a 120)
+    wmft_nota = models.FloatField(null=True, blank=True)                   # Wolf Motor: nota média de qualidade (0 a 5)
+
     # TCLE virtual (Nova sessão): marcado = o paciente declarou que os dados ficam salvos no histórico, pseudonimizados.
     # Não marcado = sessão ANÔNIMA: sem nome, sem data e sem código, não entra no histórico e é apagada ao fechar.
     anonima = models.BooleanField(default=False)

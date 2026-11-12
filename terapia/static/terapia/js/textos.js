@@ -97,6 +97,16 @@ export const T = {
     salvo: 'Salvo',
     dica: 'Não precisa preencher. Só entra no relatório se houver algum critério preenchido.',
   },
+  // Escalas aplicadas pela terapeuta (MRC, Fugl-Meyer, Wolf Motor): botões que abrem janelinhas, opcionais
+  escalas: {
+    dica: 'Clique na escala que você aplicou. Só entra no relatório o que for preenchido.',
+    fmaAjuda: 'Aplicado pela terapeuta. O ESME não calcula esta nota.',
+    fmaDica: 'Pode deixar em branco. Se ficar vazio, não aparece no relatório.',
+    wmftAjuda: 'Aplicado pela terapeuta. O ESME não calcula estas notas.',
+    wmftDica: 'O WMFT só entra no relatório com o tempo e a nota preenchidos.',
+    salvando: 'Salvando…',
+    salvo: 'Salvo',
+  },
   codigo: 'Código',
 
   historico: {
@@ -235,6 +245,7 @@ export const T = {
     mesma_terapeuta: 'Esta sessão já está com essa terapeuta.',
     transferencia_invalida: 'Não deu para transferir. Atualize a página e tente de novo.',
     mrc_longo: 'Um texto do MRC é longo demais.',
+    escala_invalida: 'Valor inválido. Fugl-Meyer: número inteiro de 0 a 66. WMFT: tempo de 0 a 120 s e nota de 0 a 5.',
     sem_conexao: 'Sem conexão com o programa.',
     banco_desatualizado: 'O banco de dados está desatualizado. Pare o site (Ctrl+C) e rode: python manage.py makemigrations e depois python manage.py migrate.',
   },

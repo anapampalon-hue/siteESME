@@ -3,7 +3,7 @@
 {% block title %}Nova sessão · ESME{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'terapia/css/sessao.css' %}">
-<link rel="stylesheet" href="{% static 'terapia/css/nova_sessao.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'terapia/css/nova_sessao.css' %}?v=5">
 
 {# depois de "Continuar" o fisioterapeuta vai para a página de espera da mesa (e dela para a sessão) #}
 <div class="nova-pagina" id="app" data-espera="{% url 'espera_mesa' %}" data-sessao="{% url 'sessao' %}">
@@ -53,9 +53,8 @@
             <span class="tcle-caixa" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="24" height="24" focusable="false"><path d="M4.5 12.8 9.6 18 19.5 6.5"/></svg>
             </span>
-            <span class="tcle-texto">O paciente declara que os dados ficam salvos no histórico e pseudoanonimizados.</span>
+            <span class="tcle-texto">O paciente declara que leu e está de acordo com o {% if tcle_pdf %}<a class="tcle-link" href="{{ tcle_pdf }}" target="_blank" rel="noopener">TCLE</a>{% else %}TCLE{% endif %}.</span>
         </label>
-        {% if tcle_pdf %}<a class="tcle-link" href="{{ tcle_pdf }}" target="_blank" rel="noopener">Ler o TCLE (PDF)</a>{% endif %}
     </div>
 </div>
 

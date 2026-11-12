@@ -580,6 +580,41 @@ class Programa:
             self._mexeu()
             return {'ok': True}
 
+    def salvar_escalas(self, user, fma, wmft_tempo, wmft_nota):
+        """Escalas aplicadas pela terapeuta (opcionais): Fugl-Meyer (total 0 a 66, inteiro) e Wolf Motor (tempo médio em
+        segundos de 0 a 120 e nota média de 0 a 5, com 1 casa). None ou vazio = não preenchido. O Wolf Motor só entra
+        no relatório com os dois valores."""
+        def numero(v, maximo, inteiro):
+            if v is None or (isinstance(v, str) and not v.strip()):
+                return True, None
+            if isinstance(v, str):
+                v = v.strip().replace(',', '.')
+                try:
+                    v = float(v)
+                except ValueError:
+                    return False, None
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v or not 0 <= v <= maximo:
+                return False, None
+            if inteiro:
+                return (True, int(v)) if float(v).is_integer() else (False, None)
+            return True, round(float(v), 1)
+        ok1, fma = numero(fma, 66, True)
+        ok2, tempo = numero(wmft_tempo, 120, False)
+        ok3, nota = numero(wmft_nota, 5, False)
+        if not (ok1 and ok2 and ok3):
+            return {'ok': False, 'erro': 'escala_invalida'}
+        with self._lock:
+            sid = self.sessao_id or self.leitura_id
+            s = Sessao.objects.filter(pk=sid).first() if sid else None
+            if s is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            if not self._eh_dono(user, s.fisioterapeuta_id):
+                return {'ok': False, 'erro': 'sem_permissao'}
+            s.fma_total, s.wmft_tempo, s.wmft_nota = fma, tempo, nota
+            s.save(update_fields=['fma_total', 'wmft_tempo', 'wmft_nota'])
+            self._mexeu()
+            return {'ok': True}
+
     def excluir_sessao(self, user, pk):
         """Exclui DE VEZ uma sessão do histórico (com tentativas, curvas, avaliações e MRC). Só o gestor (supervisora
         ou superadmin): a tela esconde o botão, mas é ESTE teste que vale. Depois compacta o banco para os dados
@@ -765,6 +800,7 @@ class Programa:
             'avaliacoes_pendentes': _pendencias(tents),
             'mrc': [{'grupo': m.grupo, 'grau': m.grau, 'nota': m.nota or ''} for m in s.mrc.all()],
             'mrc_max': MRC_MAX_ITENS,
+            'escalas': {'fma': s.fma_total, 'wmft_tempo': s.wmft_tempo, 'wmft_nota': s.wmft_nota},
         }
 
     def snapshot(self, user):

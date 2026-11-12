@@ -2,7 +2,7 @@
    PSEUDONIMIZAÇÃO: a lista mostra só o CÓDIGO do paciente (P-XXXXXX). O nome só chega do programa se a terapeuta
    marcar "Mostrar nomes". Texto vindo de fora entra sempre por textContent (nunca innerHTML). */
 
-import { T } from './textos.js?v=6';
+import { T } from './textos.js?v=7';
 import { enviarComando } from './dados.js?v=6';
 
 const $ = (id) => document.getElementById(id);

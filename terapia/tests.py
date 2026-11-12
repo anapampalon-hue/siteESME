@@ -176,6 +176,58 @@ class MrcTests(Base):
         self.assertEqual(list(MrcItem.objects.values_list('grupo', flat=True)), ['C'])
 
 
+class EscalasTests(Base):
+    def test_salva_e_devolve(self):
+        self.assertTrue(self.prog.salvar_escalas(self.u1, '48', '12,5', '3,5')['ok'])     # texto com vírgula, como se digita
+        e = self.prog.snapshot(self.u1)['sessao']['escalas']
+        self.assertEqual(e, {'fma': 48, 'wmft_tempo': 12.5, 'wmft_nota': 3.5})
+
+    def test_vazio_limpa(self):
+        self.prog.salvar_escalas(self.u1, 30, 10, 2)
+        self.assertTrue(self.prog.salvar_escalas(self.u1, '', None, '')['ok'])
+        self.assertEqual(self.prog.snapshot(self.u1)['sessao']['escalas'], {'fma': None, 'wmft_tempo': None, 'wmft_nota': None})
+
+    def test_valores_invalidos(self):
+        for fma, tempo, nota in [(67, None, None), (-1, None, None), ('4,5', None, None), ('abc', None, None),
+                                 (None, 121, 3), (None, 10, 5.1), (None, -2, 1), (True, None, None), (None, 'x', 1)]:
+            self.assertEqual(self.prog.salvar_escalas(self.u1, fma, tempo, nota)['erro'], 'escala_invalida', (fma, tempo, nota))
+
+    def test_limites_aceitos(self):
+        self.assertTrue(self.prog.salvar_escalas(self.u1, 0, 0, 0)['ok'])
+        self.assertTrue(self.prog.salvar_escalas(self.u1, 66, 120, 5)['ok'])
+
+    def test_outra_terapeuta_nao_mexe(self):
+        self.assertEqual(self.prog.salvar_escalas(self.u2, 10, None, None)['erro'], 'sem_permissao')
+
+    def test_relatorio_so_com_o_preenchido(self):
+        from .exportar import dados_relatorio, gerar_csv
+        self.assertEqual(dados_relatorio(self.s)['escalas'], [])
+        self.prog.salvar_escalas(self.u1, 48, None, None)
+        self.s.refresh_from_db()
+        self.assertEqual(dados_relatorio(self.s)['escalas'], [('Fugl-Meyer (membro superior)', '48 de 66')])
+        self.prog.salvar_escalas(self.u1, '', 12.5, None)                          # WMFT só com os dois valores
+        self.s.refresh_from_db()
+        self.assertEqual(dados_relatorio(self.s)['escalas'], [])
+        self.prog.salvar_escalas(self.u1, 48, 12.5, 3.5)
+        self.s.refresh_from_db()
+        nomes = [n for n, _ in dados_relatorio(self.s)['escalas']]
+        self.assertEqual(nomes, ['Fugl-Meyer (membro superior)', 'Wolf Motor (WMFT)'])
+        self.assertIn('12,5 s', dados_relatorio(self.s)['escalas'][1][1])
+        self.assertNotIn('Fugl', gerar_csv(self.s))                                # escalas ficam só no relatório
+
+    def test_comando_http(self):
+        antigo = views.programa
+        views.programa = self.prog
+        try:
+            self.client.force_login(self.u1)
+            corpo = json.dumps({'nome': 'salvar_escalas', 'args': {'fma': 20}})
+            r = self.client.post('/api/comando/', data=corpo, content_type='application/json')
+            self.assertTrue(r.json()['ok'])
+            self.assertEqual(Sessao.objects.get(pk=self.s.pk).fma_total, 20)
+        finally:
+            views.programa = antigo
+
+
 class ExcluirTests(Base):
     def setUp(self):
         super().setUp()

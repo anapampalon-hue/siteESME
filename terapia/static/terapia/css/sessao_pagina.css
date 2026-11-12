@@ -246,3 +246,31 @@ dialog.ses-detalhe footer { display: flex; justify-content: space-between; gap: 
 .ses-mrc-remover { padding: 0.35rem 0.7rem; font-size: 0.9rem; box-shadow: 3px 3px 0 var(--tinta); }
 .ses-mrc-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
 @media (max-width: 820px) { .ses-mrc-linha { grid-template-columns: 1fr; } }
+
+/* ---------- Escalas aplicadas (MRC, Fugl-Meyer, Wolf Motor): botões que abrem janelinhas ---------- */
+.ses-escalas {
+    display: grid; gap: 0.7rem; padding: 0.9rem 1.1rem; color: var(--tinta); background: var(--gelo);
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta); font-family: var(--fonte-texto);
+}
+.ses-escalas h2 { margin: 0; font: 700 1.1rem/1.2 var(--fonte-titulo); }
+.ses-escalas h2 small { font: 400 0.9rem var(--fonte-texto); color: #3a3a55; }
+.ses-escalas-dica, .ses-escala-ajuda { margin: 0; font-size: 0.95rem; color: #3a3a55; }
+.ses-escalas-botoes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.ses-escala-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0.9rem 1rem; font-size: 1.05rem; }
+.esc-ok { color: #1a7a3a; font-weight: 700; }
+@media (max-width: 640px) { .ses-escalas-botoes { grid-template-columns: 1fr; } }
+
+dialog.ses-dlg-escala { font-family: var(--fonte-texto); }
+dialog.ses-dlg-pequena { width: min(92vw, 520px); }
+.ses-dlg-escala button, .ses-dlg-escala input, .ses-dlg-escala textarea { font-family: inherit; }
+.ses-dlg-escala .ses-det-caixa { display: grid; gap: 0.8rem; }
+.ses-mrc-dentro { padding: 0; background: none; border: 0; box-shadow: none; }
+.ses-escala-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; }
+.ses-escala-linha label { font: 700 1.1rem/1.2 var(--fonte-titulo); }
+.ses-escala-linha .ses-comentario-estado { margin-left: auto; }
+.ses-escala-campo {
+    width: 5.5rem; padding: 0.5rem 0.7rem; font: 1.2rem var(--fonte-texto); color: var(--tinta);
+    background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
+.ses-escala-campo:focus-visible { outline: 3px solid var(--espaco); outline-offset: 2px; }
+.ses-dlg-escala footer { justify-content: flex-end; }
