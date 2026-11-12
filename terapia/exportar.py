@@ -7,8 +7,8 @@ PSEUDONIMIZAÇÃO: por padrão nada aqui leva o nome do paciente, só o código 
   * Relatório: o nome só entra se a terapeuta marcar "Incluir o nome do paciente" (?nome=1).
   * CSV: nunca leva nome nem comentário (o comentário é texto livre e pode citar dados do paciente);
     serve para planilhas e análises. Tentativas anuladas vão marcadas (anulada = sim); no relatório elas ficam de fora.
-  * A avaliação da terapeuta (qualidade do movimento e dor) vai no CSV só como números; as ANOTAÇÕES (texto livre) e o MRC
-    ficam só no relatório.
+  * A avaliação da terapeuta (qualidade do movimento e dor) vai no CSV só como números; as ANOTAÇÕES (texto livre), o MRC
+    e as escalas aplicadas (Fugl-Meyer, Wolf Motor) ficam só no relatório.
 """
 import csv
 import io
@@ -108,7 +108,7 @@ def dados_relatorio(sessao, com_nome=False):
         'anonima': anonima,
         'codigo': sessao.garantir_codigo(),
         'nome': sessao.paciente_nome if com_nome and not anonima else None,
-        'fisio': sessao.fisioterapeuta.nome,
+        'fisio': (sessao.realizada_por or sessao.fisioterapeuta).nome,     # quem conduziu a sessão (não muda na transferência)
         # sessão anônima: sem data e sem horário (a tela mostra 00/00/0000)
         'data': None if anonima else sessao.data_sessao,
         'inicio': None if anonima else sessao.iniciada_em, 'fim': None if anonima else sessao.finalizada_em,
@@ -120,7 +120,19 @@ def dados_relatorio(sessao, com_nome=False):
         'comentario': sessao.comentario or '',
         'tentativas': linhas,
         'mrc': mrc,
+        'escalas': _escalas(sessao),
     }
+
+
+def _escalas(sessao):
+    """Escalas aplicadas pela terapeuta: só as preenchidas. Cada item: (nome, valor). Vazio = nada no relatório."""
+    itens = []
+    if sessao.fma_total is not None:
+        itens.append(('Fugl-Meyer (membro superior)', f'{sessao.fma_total} de 66'))
+    if sessao.wmft_tempo is not None and sessao.wmft_nota is not None:
+        itens.append(('Wolf Motor (WMFT)',
+                      f'tempo médio {str(sessao.wmft_tempo).replace(".", ",")} s por tarefa · nota média {str(sessao.wmft_nota).replace(".", ",")} de 5'))
+    return itens
 
 
 def gerar_csv(sessao):

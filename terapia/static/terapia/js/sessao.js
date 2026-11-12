@@ -2,8 +2,8 @@
    Regras: a tela NÃO calcula nada e NUNCA usa innerHTML com texto vindo de fora
    (o nome do paciente é digitado pela fisio): só textContent. */
 
-import { T } from './textos.js?v=5';
-import * as dados from './dados.js?v=5';
+import { T } from './textos.js?v=7';
+import * as dados from './dados.js?v=6';
 
 const { iniciar, assinar, enviarComando, obterCurva } = dados;
 
@@ -18,6 +18,7 @@ let comTimer = null;         // espera ~0,8 s depois da última letra para salva
 let comSalvando = false;
 let comIdSessao = null;      // comentário pertence a esta sessão (se mudar de sessão, recarrega o texto)
 const NOTA_MAX = 1000;
+let soConsulta = false;      // a sessão aberta é de outra terapeuta: tudo trava, só dá para ver
 let notaNumero = null;       // tentativa a que a anotação digitada pertence (vale mesmo se a janela mudar de tentativa)
 let notaTimer = null;
 let notaSalvando = false;
@@ -25,6 +26,10 @@ let mrcIdSessao = null;      // o MRC da tela pertence a esta sessão
 let mrcLinhas = [];          // [{grupo, grau, nota}]: depois da 1ª carga, a tela é a fonte da verdade
 let mrcTimer = null;
 let mrcSalvando = false;
+let escIdSessao = null;      // as escalas da tela (Fugl-Meyer, WMFT) pertencem a esta sessão
+let escValores = { fma: '', tempo: '', nota: '' };   // textos digitados: depois da 1ª carga, a tela é a fonte da verdade
+let escTimer = null;
+let escSalvando = false;
 
 /* ---------- pequenos ajudantes ---------- */
 
@@ -147,10 +152,14 @@ function linha(t) {
 
   const tdAcoes = el('td', { className: 'ses-acoes' });
   if (t.anulada) {
-    tdAcoes.append(botao(T.acoes.restaurar, () => enviarComando('restaurar', { numero: t.numero }), t.numero));
+    const b = botao(T.acoes.restaurar, () => enviarComando('restaurar', { numero: t.numero }), t.numero);
+    b.disabled = soConsulta;
+    tdAcoes.append(b);
   } else {
     tdAcoes.append(botaoAvaliar(t));
-    tdAcoes.append(botao(T.acoes.anular, () => enviarComando('anular', { numero: t.numero }), t.numero));
+    const b = botao(T.acoes.anular, () => enviarComando('anular', { numero: t.numero }), t.numero);
+    b.disabled = soConsulta;
+    tdAcoes.append(b);
   }
 
   tr.append(tdResultado, el('td', { textContent: textoAlcance(t.alcance) }), celulaFluidez(t), tdAcoes);
@@ -224,6 +233,7 @@ async function salvarPendente() {
   }
   await descarregarNota();
   await descarregarMrc();
+  await descarregarEscalas();
 }
 
 /* ---------- rodapé: encerrar, fechar, exportar ---------- */
@@ -305,12 +315,17 @@ function desenhar(e) {
   indicador($('ind-batedor'), e.equipamentos.batedor, T.batedor);
   renderResumo(s.resumo);
   renderGuia(e);
+  soConsulta = !!s.somente_consulta;
+  $('aviso-consulta').hidden = !soConsulta;
+  $('aviso-consulta').textContent = soConsulta ? T.sessao.consulta(s.responsavel) : '';
   renderLista(s.tentativas);
   renderComentario(s);
   renderMrc(s);
+  renderEscalas(s);
   renderRodape(e);
+  travarSeConsulta();
 
-  if ($('detalhe').open && detalheNumero !== null) preencherDetalhe();
+  if ($('detalhe').open && detalheNumero !== null) { preencherDetalhe(); travarSeConsulta(); }
 }
 
 /* ---------- janela Detalhe ---------- */
@@ -351,6 +366,13 @@ function desenharCurva({ pontos, escala_max }, numero) {
   return svg;
 }
 
+/** Sessão de outra terapeuta: campos e botões de alteração ficam desligados (o programa também recusa). */
+function travarSeConsulta() {
+  document.querySelectorAll('#com-texto, #mrc input, #mrc textarea, #mrc button, #fma-total, #fma-limpar, #wmft-tempo, #wmft-nota, #wmft-limpar, #aval-estrelas button, #aval-bolinhas input, #aval-nota, #det-anular, #b-concluir')
+    .forEach((c) => { c.disabled = soConsulta || (c.id === 'b-concluir' && c.disabled); });
+  $('mrc').classList.toggle('so-consulta', soConsulta);
+}
+
 /** Aviso no MEIO do quadro do gráfico (com pontinhos quando é "calculando"). */
 function avisoNoQuadro(texto, comPontinhos) {
   const p = el('p', { className: 'ses-det-aviso' });
@@ -380,6 +402,7 @@ async function preencherDetalhe() {
   }
 
   aplicarAvaliacao(t);
+  travarSeConsulta();
 
   const numeros = numerosComDetalhe();
   const i = numeros.indexOf(t.numero);
@@ -584,6 +607,7 @@ function mrcEstado(txt) { $('mrc-estado').textContent = txt; }
 
 function agendarMrc() {
   mrcEstado('');
+  marcasEscalas();
   clearTimeout(mrcTimer);
   mrcTimer = setTimeout(salvarMrc, 700);
 }
@@ -662,6 +686,88 @@ function renderMrc(s) {
   }
 }
 
+/* ---------- escalas aplicadas: MRC, Fugl-Meyer e Wolf Motor (botões que abrem janelinhas) ---------- */
+
+function marcasEscalas() {
+  const mrcPreenchido = mrcLinhas.some((l) => (l.grupo || '').trim() || l.grau !== null || (l.nota || '').trim());
+  $('esc-btn-mrc').querySelector('.esc-ok').hidden = !mrcPreenchido;
+  $('esc-btn-fma').querySelector('.esc-ok').hidden = !escValores.fma.trim();
+  $('esc-btn-wmft').querySelector('.esc-ok').hidden = !(escValores.tempo.trim() && escValores.nota.trim());
+}
+
+function escEstado(txt) { $('fma-estado').textContent = txt; $('wmft-estado').textContent = txt; }
+
+function agendarEscalas() {
+  escEstado('');
+  marcasEscalas();
+  clearTimeout(escTimer);
+  escTimer = setTimeout(salvarEscalas, 700);
+}
+
+async function salvarEscalas() {
+  clearTimeout(escTimer);
+  escTimer = null;
+  if (escSalvando) { escTimer = setTimeout(salvarEscalas, 300); return; }
+  escSalvando = true;
+  escEstado(T.escalas.salvando);
+  $('fma-erro').hidden = true;
+  $('wmft-erro').hidden = true;
+  const r = await enviarComando('salvar_escalas', { fma: escValores.fma, wmft_tempo: escValores.tempo, wmft_nota: escValores.nota });
+  escSalvando = false;
+  if (r.ok) {
+    escEstado(escTimer ? T.escalas.salvando : T.escalas.salvo);
+  } else {
+    escEstado('');
+    for (const id of ['fma-erro', 'wmft-erro']) {
+      $(id).hidden = false;
+      $(id).textContent = T.erros[r.erro] || T.erroGenerico(r.erro);
+    }
+  }
+}
+
+async function descarregarEscalas() {
+  while (escTimer !== null || escSalvando) {
+    if (escTimer !== null && !escSalvando) await salvarEscalas();
+    else await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+function renderEscalas(s) {
+  $('esc-dica').textContent = T.escalas.dica;
+  $('fma-ajuda').textContent = T.escalas.fmaAjuda;
+  $('fma-dica').textContent = T.escalas.fmaDica;
+  $('wmft-ajuda').textContent = T.escalas.wmftAjuda;
+  $('wmft-dica').textContent = T.escalas.wmftDica;
+  if (escIdSessao !== s.id) {            // sessão nova: carrega o que já está salvo; depois disso a tela manda
+    escIdSessao = s.id;
+    const e = s.escalas || {};
+    const txt = (v) => (v === null || v === undefined ? '' : String(v).replace('.', ','));
+    escValores = { fma: txt(e.fma), tempo: txt(e.wmft_tempo), nota: txt(e.wmft_nota) };
+    $('fma-total').value = escValores.fma;
+    $('wmft-tempo').value = escValores.tempo;
+    $('wmft-nota').value = escValores.nota;
+  }
+  marcasEscalas();
+}
+
+function ligarEscalas() {
+  document.querySelectorAll('.ses-escala-btn').forEach((b) => {
+    b.addEventListener('click', () => $(b.dataset.dialogo).showModal());
+  });
+  document.querySelectorAll('.ses-dlg-escala').forEach((d) => {
+    d.querySelector('[data-fechar]').addEventListener('click', () => d.close());
+    d.addEventListener('close', () => { descarregarMrc(); descarregarEscalas(); marcasEscalas(); });
+  });
+  const campo = (id, chave) => $(id).addEventListener('input', () => { escValores[chave] = $(id).value; agendarEscalas(); });
+  campo('fma-total', 'fma');
+  campo('wmft-tempo', 'tempo');
+  campo('wmft-nota', 'nota');
+  $('fma-limpar').addEventListener('click', () => { escValores.fma = ''; $('fma-total').value = ''; agendarEscalas(); });
+  $('wmft-limpar').addEventListener('click', () => {
+    escValores.tempo = ''; escValores.nota = ''; $('wmft-tempo').value = ''; $('wmft-nota').value = ''; agendarEscalas();
+  });
+}
+
 function ligarMrc() {
   $('mrc-adicionar').addEventListener('click', () => {
     mrcLinhas.push({ grupo: '', grau: null, nota: '' });
@@ -678,6 +784,7 @@ function ligarEventos() {
   $('detalhe').addEventListener('close', () => { descarregarNota(); detalheNumero = null; detalheChave = null; });
   ligarAvaliacao();
   ligarMrc();
+  ligarEscalas();
   $('det-anterior').addEventListener('click', () => irParaVizinha(-1));
   $('det-proxima').addEventListener('click', () => irParaVizinha(1));
   $('det-anular').addEventListener('click', () => {
@@ -701,6 +808,7 @@ function ligarEventos() {
     if (comTimer !== null) salvarComentario();
     if (notaTimer !== null) descarregarNota();
     if (mrcTimer !== null) descarregarMrc();
+    if (escTimer !== null) descarregarEscalas();
   });
 
   // exportar: garante que o último comentário já foi salvo antes de abrir o relatório / baixar o CSV

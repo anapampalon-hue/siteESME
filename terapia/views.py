@@ -346,9 +346,16 @@ def api_comando(request):
         r = programa.salvar_avaliacao(u, numero, {k: args[k] for k in ('qualidade', 'dor', 'nota') if k in args})
     elif nome == 'salvar_mrc':
         r = programa.salvar_mrc(u, args.get('itens'))
+    elif nome == 'salvar_escalas':
+        r = programa.salvar_escalas(u, args.get('fma'), args.get('wmft_tempo'), args.get('wmft_nota'))
     elif nome == 'excluir_sessao':
         try:
             r = programa.excluir_sessao(u, int(args.get('id')))
+        except (TypeError, ValueError):
+            return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
+    elif nome == 'transferir_sessao':
+        try:
+            r = programa.transferir_sessoes(u, int(args.get('id')), args.get('destino'), args.get('escopo'), args.get('autora_ve'))
         except (TypeError, ValueError):
             return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
     elif nome == 'concluir_interrompida':

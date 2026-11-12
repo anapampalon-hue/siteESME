@@ -137,6 +137,18 @@
         </table>
         {% endif %}
 
+        {% if r.escalas %}
+        <h2>Escalas aplicadas pela terapeuta</h2>
+        <table class="mrc-tab">
+            <tbody>
+            {% for nome, valor in r.escalas %}
+                <tr><td><strong>{{ nome }}</strong></td><td>{{ valor }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <p class="pseudo">Notas registradas pela terapeuta; o ESME não calcula essas escalas.</p>
+        {% endif %}
+
         {% if r.tentativas %}
         <div class="fichas">
         <h2>Curva de velocidade de cada tentativa</h2>

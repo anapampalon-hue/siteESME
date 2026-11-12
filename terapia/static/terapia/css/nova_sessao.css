@@ -53,7 +53,8 @@
 .tcle-input:checked + .tcle-rotulo .tcle-caixa svg { stroke-dashoffset: 0; }
 .tcle-input:focus-visible + .tcle-rotulo .tcle-caixa { outline: 3px solid var(--espaco); outline-offset: 3px; }
 @keyframes tcle-pop { 0% { transform: scale(1); } 55% { transform: scale(1.18) rotate(-4deg); } 100% { transform: scale(1); } }
-.tcle-link { justify-self: start; margin-left: 3.3rem; font-size: 0.95rem; font-weight: 700; color: var(--alien); }
+.tcle-link { font-weight: 700; color: var(--alien); text-decoration: underline; text-underline-offset: 3px; }
+.tcle-link:hover, .tcle-link:focus-visible { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .tcle-caixa, .tcle-caixa svg { transition: none; } .tcle-input:checked + .tcle-rotulo .tcle-caixa { animation: none; } }
 
 /* nome e data ficam apagadinhos (e travados) enquanto o TCLE não estiver marcado */
