@@ -251,3 +251,105 @@ class ExportarTests(Base):
         from .exportar import dados_relatorio
         self.prog.salvar_mrc(self.u1, [{'grupo': '', 'grau': None, 'nota': ''}])
         self.assertEqual(dados_relatorio(self.s)['mrc'], [])
+
+
+class TransferirTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.prog.sessao_id = None
+        self.s.status = Sessao.Status.CONCLUIDA
+        self.s.codigo_paciente = 'P-AAAAAA'
+        self.s.realizada_por = self.f1
+        self.s.save()
+        self.tentativa(1)
+        self.s2 = Sessao.objects.create(fisioterapeuta=self.f1, realizada_por=self.f1, paciente_nome='Maria Silva',
+                                        codigo_paciente='P-AAAAAA', status=Sessao.Status.CONCLUIDA)
+        self.outra = Sessao.objects.create(fisioterapeuta=self.f1, realizada_por=self.f1, paciente_nome='Joao',
+                                           codigo_paciente='P-BBBBBB', status=Sessao.Status.CONCLUIDA)
+
+    def transferir(self, user=None, pk=None, destino=None, escopo='paciente', autora=True):
+        return self.prog.transferir_sessoes(user or self.sup, pk or self.s.pk, destino or self.f2.pk, escopo, autora)
+
+    def test_so_o_gestor_transfere(self):
+        self.assertEqual(self.transferir(user=self.u1)['erro'], 'sem_permissao')
+        self.assertEqual(self.transferir(user=self.u2)['erro'], 'sem_permissao')
+
+    def test_paciente_inteiro_move_so_as_sessoes_dele(self):
+        r = self.transferir()
+        self.assertEqual(r, {'ok': True, 'transferidas': 2})
+        for x in (self.s, self.s2):
+            x.refresh_from_db()
+            self.assertEqual((x.fisioterapeuta_id, x.realizada_por_id), (self.f2.pk, self.f1.pk))
+        self.outra.refresh_from_db()
+        self.assertEqual(self.outra.fisioterapeuta_id, self.f1.pk)
+
+    def test_so_uma_sessao(self):
+        self.assertEqual(self.transferir(escopo='sessao')['transferidas'], 1)
+        self.s2.refresh_from_db()
+        self.assertEqual(self.s2.fisioterapeuta_id, self.f1.pk)
+
+    def test_autora_continua_vendo_so_para_consulta(self):
+        self.transferir(autora=True)
+        self.assertIn(self.s.pk, set(Sessao.objects.visiveis_para(self.u1).values_list('pk', flat=True)))
+        self.assertIn(self.s.pk, set(Sessao.objects.visiveis_para(self.u2).values_list('pk', flat=True)))
+        # ela abre, mas não altera
+        self.assertTrue(self.prog.abrir_sessao(self.u1, self.s.pk)['ok'])
+        self.assertEqual(self.prog.salvar_mrc(self.u1, [{'grupo': 'x', 'grau': 1, 'nota': ''}])['erro'], 'sem_permissao')
+        self.assertTrue(self.prog.snapshot(self.u1)['sessao']['somente_consulta'])
+        self.assertFalse(self.prog.snapshot(self.sup)['sessao'] is None)
+
+    def test_autora_deixa_de_ver_quando_a_supervisora_escolhe(self):
+        self.transferir(autora=False)
+        self.assertNotIn(self.s.pk, set(Sessao.objects.visiveis_para(self.u1).values_list('pk', flat=True)))
+        self.assertEqual(self.prog.abrir_sessao(self.u1, self.s.pk)['erro'], 'nao_encontrado')
+
+    def test_nova_terapeuta_ve_e_edita(self):
+        self.transferir()
+        self.assertTrue(self.prog.abrir_sessao(self.u2, self.s.pk)['ok'])
+        self.assertTrue(self.prog.salvar_mrc(self.u2, [{'grupo': 'Ombro', 'grau': 2, 'nota': ''}])['ok'])
+        self.assertFalse(self.prog.snapshot(self.u2)['sessao']['somente_consulta'])
+        self.assertEqual(self.prog.snapshot(self.u2)['sessao']['realizada_por'], 'ana')
+
+    def test_historico_mostra_quem_realizou(self):
+        self.transferir()
+        linhas = {l['id']: l for l in self.prog.listar_historico(self.u2)['sessoes']}
+        self.assertEqual(linhas[self.s.pk]['realizada_por'], 'ana')
+        self.assertFalse(linhas[self.s.pk]['somente_consulta'])
+        da_ana = {l['id']: l for l in self.prog.listar_historico(self.u1)['sessoes']}
+        self.assertTrue(da_ana[self.s.pk]['somente_consulta'])
+
+    def test_registro_da_transferencia(self):
+        from .models import Transferencia
+        self.transferir()
+        t = Transferencia.objects.filter(sessao=self.s).get()
+        self.assertEqual((t.de_id, t.para_id, t.por_id, t.escopo), (self.f1.pk, self.f2.pk, self.fsup.pk, 'paciente'))
+
+    def test_recusas(self):
+        self.assertEqual(self.transferir(destino=self.f1.pk)['erro'], 'mesma_terapeuta')
+        self.assertEqual(self.transferir(destino=9999)['erro'], 'destino_invalido')
+        self.f2.ativo = False
+        self.f2.save()
+        self.assertEqual(self.transferir()['erro'], 'destino_invalido')
+        self.assertEqual(self.transferir(escopo='tudo')['erro'], 'transferencia_invalida')
+        self.assertEqual(self.transferir(pk=9999)['erro'], 'nao_encontrado')
+        self.prog.sessao_id = self.s.pk
+        self.f2.ativo = True
+        self.f2.save()
+        self.assertEqual(self.transferir()['erro'], 'sessao_aberta')
+
+    def test_voltar_para_a_autora_devolve_tudo(self):
+        self.transferir()
+        self.transferir(destino=self.f1.pk)
+        self.s.refresh_from_db()
+        self.assertEqual((self.s.fisioterapeuta_id, self.s.autora_ve), (self.f1.pk, True))
+
+    def test_codigo_do_paciente_e_reaproveitado_pela_nova_terapeuta(self):
+        self.transferir()
+        self.assertEqual(self.prog._codigo_do_paciente(self.f2, 'maria  SILVA'), 'P-AAAAAA')
+        self.assertNotEqual(self.prog._codigo_do_paciente(self.f2, 'Outro Nome'), 'P-AAAAAA')
+
+    def test_relatorio_mostra_quem_realizou(self):
+        from .exportar import dados_relatorio
+        self.transferir()
+        self.s.refresh_from_db()
+        self.assertEqual(dados_relatorio(self.s)['fisio'], 'ana')

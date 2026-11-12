@@ -87,6 +87,11 @@ tr.ses-anulada .ses-pontinhos i { background: #e4e4ee; }
 /* ---------- código do paciente e comentário da terapeuta ---------- */
 .ses-codigo { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.04em; }
 
+.ses-aviso-consulta {
+    margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: var(--tinta); background: #e6dcff;
+    border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);
+}
+.ses-mrc.so-consulta .ses-mrc-linha { opacity: 0.85; }
 .ses-aviso-interrompida {
     margin: 0; padding: 0.8rem 1.2rem; font-weight: 700; color: #4d3b00; background: #ffe58f;
     border: 3px solid var(--tinta); box-shadow: 5px 5px 0 var(--tinta);

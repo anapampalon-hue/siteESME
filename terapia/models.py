@@ -96,7 +96,8 @@ class SessaoQuerySet(models.QuerySet):
         return self.filter(excluida=False)
 
     def visiveis_para(self, user):
-        """Gestor vê todas; fisio vê só as sessões que ela conduziu."""
+        """Gestor vê todas. A fisio vê as sessões de que é responsável e, só para consulta, as que ela mesma realizou e
+        foram transferidas para outra terapeuta (quando a supervisora deixou `autora_ve` ligado)."""
         if not user.is_authenticated:
             return self.none()
         if eh_gestor(user):
@@ -104,7 +105,7 @@ class SessaoQuerySet(models.QuerySet):
         fisio = getattr(user, 'fisioterapeuta', None)
         if fisio is None or not fisio.ativo:
             return self.none()
-        return self.ativas().filter(fisioterapeuta=fisio)
+        return self.ativas().filter(models.Q(fisioterapeuta=fisio) | models.Q(realizada_por=fisio, autora_ve=True))
 
 
 class Sessao(models.Model):
@@ -115,7 +116,13 @@ class Sessao(models.Model):
 
     fisioterapeuta = models.ForeignKey(
         Fisioterapeuta, on_delete=models.PROTECT, related_name='sessoes'
-    )  # quem conduziu a sessão
+    )  # RESPONSÁVEL atual: quem vê e edita a sessão (muda quando a supervisora transfere)
+    # Quem de fato conduziu a sessão: nunca muda. É o que o relatório mostra. Nula só se a conta dela foi apagada.
+    realizada_por = models.ForeignKey(
+        Fisioterapeuta, on_delete=models.SET_NULL, null=True, blank=True, related_name='sessoes_realizadas'
+    )
+    # Depois de uma transferência: True = a terapeuta que realizou continua vendo a sessão (só para consulta)
+    autora_ve = models.BooleanField(default=True)
 
     # Digitados pela fisio na tela "Nova sessão" (não existe cadastro de paciente)
     # criptografado no banco (campos.py); listas e admin mostram só as iniciais
@@ -334,3 +341,17 @@ class MrcItem(models.Model):
 
     def __str__(self):
         return f'MRC {self.grupo or "—"}: {self.grau if self.grau is not None else "—"}'
+
+
+class Transferencia(models.Model):
+    """Registro de cada sessão transferida: quem passou, de quem para quem e quando (rastreabilidade)."""
+    sessao = models.ForeignKey(Sessao, on_delete=models.CASCADE, related_name='transferencias')
+    de = models.ForeignKey(Fisioterapeuta, on_delete=models.SET_NULL, null=True, related_name='+')
+    para = models.ForeignKey(Fisioterapeuta, on_delete=models.SET_NULL, null=True, related_name='+')
+    por = models.ForeignKey(Fisioterapeuta, on_delete=models.SET_NULL, null=True, related_name='+')
+    escopo = models.CharField(max_length=10, choices=[('sessao', 'Só a sessão'), ('paciente', 'Paciente inteiro')])
+    autora_ve = models.BooleanField(default=True)
+    em = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-em']

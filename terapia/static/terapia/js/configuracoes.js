@@ -3,8 +3,8 @@
    é enviada ao programa só na hora de gravar na placa, e some quando se chega ao passo 4.
    Texto vindo de fora (nome de rede, interface) entra só por textContent. */
 
-import { T } from './textos.js?v=5';
-import * as dados from './dados.js?v=5';
+import { T } from './textos.js?v=6';
+import * as dados from './dados.js?v=6';
 
 const { iniciar, assinar, enviarComando } = dados;
 const $ = (id) => document.getElementById(id);

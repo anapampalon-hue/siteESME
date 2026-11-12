@@ -49,13 +49,27 @@ main:has(.his) { width: min(100%, 1180px); padding-top: 1.2rem; }
 .his-tabela small { display: block; font-size: 0.85rem; color: #3a3a55; }
 .his-codigo { font: 700 1rem ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.04em; }
 .his-nome { font-weight: 700; }
-.his-estado { display: inline-block; padding: 0.1rem 0.6rem; font-size: 0.9rem; font-weight: 700; border: 2px solid var(--tinta); border-radius: 999px; }
-.his-estado-concluida { background: var(--alien); }
-.his-estado-interrompida { background: #ffe58f; }
-.his-tabela td.his-acoes { white-space: normal; }
-.his-acoes .botao { display: inline-block; width: auto; margin: 0.15rem 0.6rem 0.35rem 0; text-decoration: none; }
+.his-etiqueta-int { display: inline-block; margin-top: 0.25rem; padding: 0 0.6rem; font-size: 0.8rem; font-weight: 700; background: #ffe58f; border: 2px solid var(--tinta); border-radius: 999px; }
+.his-etiqueta { display: inline-block; margin-top: 0.25rem; padding: 0 0.5rem; font-size: 0.8rem; font-weight: 700; background: #e6dcff; border: 2px solid var(--tinta); border-radius: 4px; }
+
+/* ações: "Abrir" + quadradinho "⋯" que abre o menu */
+.his-acoes-linha { display: flex; align-items: center; gap: 0.7rem; }
+.his-abrir { background: var(--alien); }
+.his-mais { width: 2.4rem; height: 2.4rem; box-shadow: 3px 3px 0 var(--tinta); }
+.his-mais svg { width: 1.3rem; height: 1.3rem; fill: currentColor; stroke: none; }
+.his-menu {
+    position: fixed; z-index: 50; min-width: 11rem; padding: 0.3rem; display: grid; gap: 0.1rem;
+    color: var(--tinta); background: var(--gelo); border: 3px solid var(--tinta); border-radius: 6px; box-shadow: 5px 5px 0 var(--tinta);
+}
+.his-menu-item {
+    display: block; width: 100%; padding: 0.5rem 0.7rem; font: 700 1rem var(--fonte-texto); text-align: left; text-decoration: none;
+    color: var(--tinta); background: none; border: 0; border-radius: 4px; cursor: pointer;
+}
+.his-menu-item:hover, .his-menu-item:focus-visible { background: #b9d2ff; outline: none; }
+.his-menu-perigo { color: #5c0b0b; }
+.his-menu-perigo:hover, .his-menu-perigo:focus-visible { background: #ffb3a7; }
+.his-menu-sep { height: 2px; margin: 0.25rem 0.2rem; background: rgba(13, 13, 26, 0.25); }
 .his-perigo { color: #5c0b0b; background: #ffb3a7; }
-.his-acoes .his-perigo { margin-right: 0; }
 dialog.his-dialogo {
     width: min(92vw, 520px); padding: 1.2rem 1.4rem; color: var(--tinta); background: var(--gelo);
     border: 3px solid #7a1010; box-shadow: 8px 8px 0 var(--tinta);
@@ -66,4 +80,32 @@ dialog.his-dialogo p { margin: 0 0 0.8rem; line-height: 1.45; }
 .his-erro-dialogo { color: #7a1010; }
 .his-dialogo-botoes { display: flex; justify-content: flex-end; gap: 0.8rem; }
 .his-dialogo-botoes .botao { width: auto; }
+
+/* ---------- janela de transferir ---------- */
+dialog.his-transf { width: min(92vw, 520px); max-height: none; padding: 0; overflow: visible; color: var(--tinta); background: none; border: 0; }
+dialog.his-transf::backdrop { background: rgba(13, 13, 26, 0.72); }
+.his-transf-x { position: absolute; top: -3.6rem; left: 0; }
+.his-transf-caixa {
+    max-height: calc(100vh - 8rem); padding: 1.2rem 1.4rem; overflow-y: auto; font-family: var(--fonte-texto);
+    background: var(--gelo); border: 3px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta);
+}
+.his-transf-caixa h2 { margin: 0 0 0.3rem; font: 700 1.4rem/1.2 var(--fonte-titulo); }
+.his-transf-resumo { margin: 0 0 1rem; font-size: 0.95rem; color: #3a3a55; }
+.his-op {
+    display: flex; align-items: flex-start; gap: 0.7rem; margin-bottom: 0.6rem; padding: 0.65rem 0.8rem; cursor: pointer;
+    background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
+.his-op:has(input:checked) { background: #eaffe8; box-shadow: 4px 4px 0 var(--tinta); }
+.his-op input { width: 1.2rem; height: 1.2rem; margin-top: 0.15rem; accent-color: var(--espaco); }
+.his-op b { display: block; }
+.his-op small { display: block; font-size: 0.88rem; color: #3a3a55; }
+.his-autora { margin: 0.9rem 0; padding: 0.5rem 0.8rem 0.7rem; border: 3px solid var(--tinta); border-radius: 6px; }
+.his-autora legend { padding: 0 0.3rem; font-weight: 700; }
+.his-autora label { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem; cursor: pointer; }
+.his-autora input { width: 1.1rem; height: 1.1rem; accent-color: var(--espaco); }
+.his-transf-rotulo { display: block; margin-bottom: 0.3rem; font-weight: 700; }
+#transf-destino {
+    width: 100%; margin-bottom: 1rem; padding: 0.5rem 0.7rem; font: 1rem var(--fonte-texto); color: var(--tinta);
+    background: var(--branco); border: 3px solid var(--tinta); border-radius: 6px;
+}
 .his-vazio { margin: 0; padding: 2rem 1.2rem; font-weight: 600; color: var(--tinta); background: var(--gelo); }

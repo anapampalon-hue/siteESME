@@ -27,12 +27,12 @@ import traceback
 import unicodedata
 import uuid
 
-from django.db import connection, transaction
+from django.db import connection, models, transaction
 from django.utils import timezone
 
 from . import fluidez as calculo_fluidez
 from .campos import codigo_paciente, normalizar_nome
-from .models import MRC_MAX_ITENS, EventoBobina, Feedback, Fisioterapeuta, MrcItem, Sessao, Tentativa, eh_gestor
+from .models import MRC_MAX_ITENS, EventoBobina, Feedback, Fisioterapeuta, MrcItem, Sessao, Tentativa, Transferencia, eh_gestor
 from .protocolo import EV_BOBINA, EV_FIM, EV_GOL, EV_INICIO
 
 SEM_SINAL_S = 2.0   # escopo do Sandro: ~2 s sem pacotes = sem sinal
@@ -482,7 +482,7 @@ class Programa:
             t = Tentativa.objects.filter(sessao_id=sid, numero=numero, finalizada_em__isnull=False).select_related('sessao').first() if sid else None
             if t is None:
                 return {'ok': False, 'erro': 'nao_encontrado'}
-            if not self._pode_ver(user, t.sessao.fisioterapeuta_id):
+            if not self._pode_ver(user, t.sessao):
                 return {'ok': False, 'erro': 'sem_permissao'}
             if not t.curva or t.pk in self._pend:
                 return {'ok': True, 'curva': None}
@@ -650,7 +650,12 @@ class Programa:
             pre = normalizar_nome(busca)
             alvo = _data_iso_valida(data_iso) if data_iso else None
             linhas = []
-            for s in Sessao.objects.visiveis_para(user).filter(anonima=False).select_related('fisioterapeuta').order_by('-iniciada_em', '-criada_em'):
+            gestor = eh_gestor(user)
+            contagem = {}
+            if gestor:                                  # quantas sessões cada paciente tem com cada responsável (janela de transferir)
+                for r in Sessao.objects.ativas().filter(anonima=False).order_by().values('fisioterapeuta_id', 'codigo_paciente').annotate(n=models.Count('pk')):
+                    contagem[(r['fisioterapeuta_id'], r['codigo_paciente'])] = r['n']
+            for s in Sessao.objects.visiveis_para(user).filter(anonima=False).select_related('fisioterapeuta', 'realizada_por').order_by('-iniciada_em', '-criada_em'):
                 if s.pk == self.sessao_id:
                     continue                        # a sessão em andamento não é histórico ainda
                 tents = list(s.tentativas.all())
@@ -667,6 +672,7 @@ class Programa:
                 melhor = _alcance(max(validas, key=lambda t: t.bobinas_atingidas)) if validas else {'cm': None, 'bobina': None, 'gol': False}
                 linha = {
                     'id': s.pk, 'codigo': codigo, 'data': s.data_sessao.isoformat(),
+                    'n_paciente': contagem.get((s.fisioterapeuta_id, codigo), 1) if gestor else None,
                     'inicio': s.iniciada_em.isoformat() if s.iniciada_em else None,
                     'tentativas_validas': len(validas), 'melhor_alcance': melhor,
                     'status': 'interrompida' if s.status == Sessao.Status.EM_ANDAMENTO else 'concluida',
@@ -674,12 +680,57 @@ class Programa:
                 }
                 if revelar:
                     linha['nome'] = nome
-                if eh_gestor(user):
-                    linha['fisio'] = s.fisioterapeuta.nome
+                transferida = s.realizada_por_id is not None and s.realizada_por_id != s.fisioterapeuta_id
+                if gestor or transferida:
+                    linha['fisio'] = s.fisioterapeuta.nome                  # responsável atual
+                    linha['fisio_id'] = s.fisioterapeuta_id
+                if transferida:
+                    linha['realizada_por'] = s.realizada_por.nome
+                linha['somente_consulta'] = self._so_consulta(user, s)
                 linhas.append(linha)
                 if len(linhas) >= 300:
                     break
-            return {'ok': True, 'sessoes': linhas, 'pode_excluir': eh_gestor(user)}
+            destinos = [{'id': f.pk, 'nome': f.nome} for f in Fisioterapeuta.objects.filter(ativo=True).order_by('nome')] if gestor else []
+            return {'ok': True, 'sessoes': linhas, 'pode_excluir': gestor, 'pode_transferir': gestor, 'destinos': destinos}
+
+    def transferir_sessoes(self, user, pk, destino_id, escopo, autora_ve):
+        """Só o gestor. Passa a responsabilidade (quem vê e edita) de UMA sessão ou do PACIENTE INTEIRO (todas as sessões
+        com o mesmo código e a mesma responsável) para outra terapeuta ativa. Quem realizou a sessão não muda.
+        `autora_ve`: a terapeuta que sai continua vendo as sessões que ela realizou (só consulta) ou não."""
+        if not eh_gestor(user):
+            return {'ok': False, 'erro': 'sem_permissao'}
+        if escopo not in ('sessao', 'paciente') or not isinstance(autora_ve, bool):
+            return {'ok': False, 'erro': 'transferencia_invalida'}
+        with self._lock:
+            s = Sessao.objects.ativas().filter(pk=pk, anonima=False).first()
+            if s is None:
+                return {'ok': False, 'erro': 'nao_encontrado'}
+            destino = Fisioterapeuta.objects.filter(pk=destino_id, ativo=True).first() if isinstance(destino_id, int) and not isinstance(destino_id, bool) else None
+            if destino is None:
+                return {'ok': False, 'erro': 'destino_invalido'}
+            if destino.pk == s.fisioterapeuta_id:
+                return {'ok': False, 'erro': 'mesma_terapeuta'}
+            origem_id = s.fisioterapeuta_id
+            alvo = Sessao.objects.ativas().filter(fisioterapeuta_id=origem_id, anonima=False)
+            alvo = alvo.filter(codigo_paciente=s.codigo_paciente) if escopo == 'paciente' and s.codigo_paciente else alvo.filter(pk=s.pk)
+            sessoes = list(alvo)
+            if any(x.pk == self.sessao_id for x in sessoes):
+                return {'ok': False, 'erro': 'sessao_aberta'}
+            quem = getattr(user, 'fisioterapeuta', None)
+            with transaction.atomic():
+                for x in sessoes:
+                    if x.realizada_por_id is None:
+                        x.realizada_por_id = origem_id
+                    # a marca vale para as sessões que a terapeuta que sai realizou; as de outras autoras ficam como estavam
+                    if x.realizada_por_id == origem_id:
+                        x.autora_ve = autora_ve
+                    if x.realizada_por_id == destino.pk:
+                        x.autora_ve = True
+                    x.fisioterapeuta_id = destino.pk
+                    x.save(update_fields=['realizada_por', 'autora_ve', 'fisioterapeuta'])
+                    Transferencia.objects.create(sessao=x, de_id=origem_id, para=destino, por=quem, escopo=escopo, autora_ve=autora_ve)
+            self._mexeu()
+            return {'ok': True, 'transferidas': len(sessoes)}
 
     def fechar_leitura(self, user):
         with self._lock:
@@ -734,10 +785,13 @@ class Programa:
                 for sid, tela_s, status in ((self.sessao_id, 'sessao_em_andamento', 'em_andamento'),
                                             (self.leitura_id, 'sessao_encerrada', 'concluida')):
                     s = Sessao.objects.filter(pk=sid).first() if sid else None
-                    if s and self._pode_ver(user, s.fisioterapeuta_id):
+                    if s and self._pode_ver(user, s):
                         if tela_s == 'sessao_encerrada' and s.status == Sessao.Status.EM_ANDAMENTO:
                             status = 'interrompida'      # o programa foi fechado no meio dela
                         tela, sessao = tela_s, self._sessao_dict(s, status)
+                        sessao['somente_consulta'] = tela_s == 'sessao_encerrada' and self._so_consulta(user, s)
+                        sessao['responsavel'] = s.fisioterapeuta.nome
+                        sessao['realizada_por'] = s.realizada_por.nome if s.realizada_por and s.realizada_por_id != s.fisioterapeuta_id else None
                         break
             return {
                 'versao': self.versao, 'servidor': self.servidor, 'tela': tela,
@@ -775,9 +829,26 @@ class Programa:
         fisio = getattr(user, 'fisioterapeuta', None)
         return bool(fisio and fisio.pk == fisio_id) or user.is_superuser
 
-    def _pode_ver(self, user, fisio_id):
-        """Ler uma sessão (histórico, curva, relatório): a dona da sessão e o gestor."""
-        return self._eh_dono(user, fisio_id) or eh_gestor(user)
+    def _pode_ver(self, user, sessao):
+        """Ler uma sessão (histórico, curva, relatório): a responsável, o gestor e, só para consulta, a terapeuta que a
+        realizou quando a sessão foi transferida e a supervisora deixou ela continuar vendo."""
+        if self._eh_dono(user, sessao.fisioterapeuta_id) or eh_gestor(user):
+            return True
+        fisio = getattr(user, 'fisioterapeuta', None)
+        return bool(fisio and fisio.ativo and sessao.autora_ve and sessao.realizada_por_id == fisio.pk)
+
+    def _so_consulta(self, user, sessao):
+        """True quando quem está vendo não pode alterar a sessão (as alterações já são recusadas em cada comando)."""
+        return not self._eh_dono(user, sessao.fisioterapeuta_id)
+
+    def _codigo_do_paciente(self, fisio, nome):
+        """Código do paciente para uma sessão nova. O código nasce do nome + da conta da terapeuta; se este paciente
+        chegou por transferência, as sessões dele já têm um código: reaproveita para o histórico não se partir em dois."""
+        alvo = normalizar_nome(nome)
+        for n, cod in Sessao.objects.ativas().filter(fisioterapeuta=fisio, anonima=False).exclude(codigo_paciente='').values_list('paciente_nome', 'codigo_paciente'):
+            if normalizar_nome(n) == alvo:
+                return cod
+        return codigo_paciente(fisio.pk, nome)
 
     def _mexeu(self):
         self._rev += 1
@@ -795,8 +866,8 @@ class Programa:
         fisio = Fisioterapeuta.objects.get(pk=e['fisio_id'])
         anonima = bool(e.get('anonima'))
         s = Sessao.objects.create(
-            fisioterapeuta=fisio, paciente_nome=e['paciente'], data_sessao=e['data'],
-            codigo_paciente='' if anonima else codigo_paciente(fisio.pk, e['paciente']),
+            fisioterapeuta=fisio, realizada_por=fisio, paciente_nome=e['paciente'], data_sessao=e['data'],
+            codigo_paciente='' if anonima else self._codigo_do_paciente(fisio, e['paciente']),
             anonima=anonima, consentimento_em=None if anonima else timezone.now(),
             status=Sessao.Status.EM_ANDAMENTO, circuito_ok=True,
             batedor_conectado=self._equip(self.batedor_visto) == 'ok',

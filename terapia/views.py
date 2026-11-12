@@ -351,6 +351,11 @@ def api_comando(request):
             r = programa.excluir_sessao(u, int(args.get('id')))
         except (TypeError, ValueError):
             return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
+    elif nome == 'transferir_sessao':
+        try:
+            r = programa.transferir_sessoes(u, int(args.get('id')), args.get('destino'), args.get('escopo'), args.get('autora_ve'))
+        except (TypeError, ValueError):
+            return JsonResponse({'ok': False, 'erro': 'pedido_invalido'}, status=400)
     elif nome == 'concluir_interrompida':
         r = programa.concluir_interrompida(u)
     elif nome == 'listar_historico':

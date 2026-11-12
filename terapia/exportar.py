@@ -108,7 +108,7 @@ def dados_relatorio(sessao, com_nome=False):
         'anonima': anonima,
         'codigo': sessao.garantir_codigo(),
         'nome': sessao.paciente_nome if com_nome and not anonima else None,
-        'fisio': sessao.fisioterapeuta.nome,
+        'fisio': (sessao.realizada_por or sessao.fisioterapeuta).nome,     # quem conduziu a sessão (não muda na transferência)
         # sessão anônima: sem data e sem horário (a tela mostra 00/00/0000)
         'data': None if anonima else sessao.data_sessao,
         'inicio': None if anonima else sessao.iniciada_em, 'fim': None if anonima else sessao.finalizada_em,

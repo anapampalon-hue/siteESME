@@ -2,8 +2,8 @@
    Regras: a tela NÃO calcula nada e NUNCA usa innerHTML com texto vindo de fora
    (o nome do paciente é digitado pela fisio): só textContent. */
 
-import { T } from './textos.js?v=5';
-import * as dados from './dados.js?v=5';
+import { T } from './textos.js?v=6';
+import * as dados from './dados.js?v=6';
 
 const { iniciar, assinar, enviarComando, obterCurva } = dados;
 
@@ -18,6 +18,7 @@ let comTimer = null;         // espera ~0,8 s depois da última letra para salva
 let comSalvando = false;
 let comIdSessao = null;      // comentário pertence a esta sessão (se mudar de sessão, recarrega o texto)
 const NOTA_MAX = 1000;
+let soConsulta = false;      // a sessão aberta é de outra terapeuta: tudo trava, só dá para ver
 let notaNumero = null;       // tentativa a que a anotação digitada pertence (vale mesmo se a janela mudar de tentativa)
 let notaTimer = null;
 let notaSalvando = false;
@@ -147,10 +148,14 @@ function linha(t) {
 
   const tdAcoes = el('td', { className: 'ses-acoes' });
   if (t.anulada) {
-    tdAcoes.append(botao(T.acoes.restaurar, () => enviarComando('restaurar', { numero: t.numero }), t.numero));
+    const b = botao(T.acoes.restaurar, () => enviarComando('restaurar', { numero: t.numero }), t.numero);
+    b.disabled = soConsulta;
+    tdAcoes.append(b);
   } else {
     tdAcoes.append(botaoAvaliar(t));
-    tdAcoes.append(botao(T.acoes.anular, () => enviarComando('anular', { numero: t.numero }), t.numero));
+    const b = botao(T.acoes.anular, () => enviarComando('anular', { numero: t.numero }), t.numero);
+    b.disabled = soConsulta;
+    tdAcoes.append(b);
   }
 
   tr.append(tdResultado, el('td', { textContent: textoAlcance(t.alcance) }), celulaFluidez(t), tdAcoes);
@@ -305,12 +310,16 @@ function desenhar(e) {
   indicador($('ind-batedor'), e.equipamentos.batedor, T.batedor);
   renderResumo(s.resumo);
   renderGuia(e);
+  soConsulta = !!s.somente_consulta;
+  $('aviso-consulta').hidden = !soConsulta;
+  $('aviso-consulta').textContent = soConsulta ? T.sessao.consulta(s.responsavel) : '';
   renderLista(s.tentativas);
   renderComentario(s);
   renderMrc(s);
   renderRodape(e);
+  travarSeConsulta();
 
-  if ($('detalhe').open && detalheNumero !== null) preencherDetalhe();
+  if ($('detalhe').open && detalheNumero !== null) { preencherDetalhe(); travarSeConsulta(); }
 }
 
 /* ---------- janela Detalhe ---------- */
@@ -351,6 +360,13 @@ function desenharCurva({ pontos, escala_max }, numero) {
   return svg;
 }
 
+/** Sessão de outra terapeuta: campos e botões de alteração ficam desligados (o programa também recusa). */
+function travarSeConsulta() {
+  document.querySelectorAll('#com-texto, #mrc input, #mrc textarea, #mrc button, #aval-estrelas button, #aval-bolinhas input, #aval-nota, #det-anular, #b-concluir')
+    .forEach((c) => { c.disabled = soConsulta || (c.id === 'b-concluir' && c.disabled); });
+  $('mrc').classList.toggle('so-consulta', soConsulta);
+}
+
 /** Aviso no MEIO do quadro do gráfico (com pontinhos quando é "calculando"). */
 function avisoNoQuadro(texto, comPontinhos) {
   const p = el('p', { className: 'ses-det-aviso' });
@@ -380,6 +396,7 @@ async function preencherDetalhe() {
   }
 
   aplicarAvaliacao(t);
+  travarSeConsulta();
 
   const numeros = numerosComDetalhe();
   const i = numeros.indexOf(t.numero);

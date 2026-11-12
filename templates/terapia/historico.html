@@ -3,7 +3,7 @@
 {% block title %}Histórico · ESME{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{% static 'terapia/css/historico.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'terapia/css/historico.css' %}?v=3">
 {% navbar "" %}
 
 {# os endereços com "0" são modelos: o historico.js troca o 0 pelo número da sessão #}
@@ -65,5 +65,41 @@
     </div>
 </dialog>
 
-<script type="module" src="{% static 'terapia/js/historico.js' %}?v=2"></script>
+{# menu "⋯" das ações (um só, reposicionado em cada linha) #}
+<div id="his-menu" class="his-menu" role="menu" hidden></div>
+
+{# transferir sessão(ões) para outra terapeuta (só a supervisora) #}
+<dialog id="transf-dialogo" class="his-transf" aria-labelledby="transf-titulo">
+    <button type="button" id="transf-x" class="btn-quadrado his-transf-x" aria-label="Fechar" title="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="his-transf-caixa">
+        <h2 id="transf-titulo"></h2>
+        <p id="transf-resumo" class="his-transf-resumo"></p>
+
+        <label class="his-op" id="op-paciente">
+            <input type="radio" name="transf-escopo" value="paciente" checked>
+            <span><b id="op-paciente-t"></b><small id="op-paciente-a"></small></span>
+        </label>
+        <label class="his-op" id="op-sessao">
+            <input type="radio" name="transf-escopo" value="sessao">
+            <span><b id="op-sessao-t"></b><small id="op-sessao-a"></small></span>
+        </label>
+
+        <fieldset class="his-autora">
+            <legend id="autora-pergunta"></legend>
+            <label><input type="radio" name="transf-autora" value="sim" checked> <span id="autora-sim"></span></label>
+            <label><input type="radio" name="transf-autora" value="nao"> <span id="autora-nao"></span></label>
+        </fieldset>
+
+        <label for="transf-destino" class="his-transf-rotulo" id="transf-destino-rotulo"></label>
+        <select id="transf-destino"></select>
+
+        <p id="transf-erro" class="his-dica-erro his-erro-dialogo" role="alert" hidden></p>
+        <div class="his-dialogo-botoes">
+            <button type="button" id="transf-cancelar" class="botao botao-claro his-btn"></button>
+            <button type="button" id="transf-confirmar" class="botao his-btn"></button>
+        </div>
+    </div>
+</dialog>
+
+<script type="module" src="{% static 'terapia/js/historico.js' %}?v=4"></script>
 {% endblock %}
