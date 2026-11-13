@@ -626,8 +626,12 @@ const char* nomeEstado(MesaEstado e) {
 //        estava (so os grupos das bobinas cruzadas). O placar (9999) nao muda.
 //   SOM: um TRINADO (duas notas agudas se alternando) durante a corrida e um "ta-ta-TA" (uma nota por piscada, subindo) nas
 //        piscadas. Sao as mesmas faixas das notas (2 a 10): troque os numeros abaixo e ouca ate gostar.
-// Dura uns 2 s e trava o loop, como a repeticao das notas: nesse tempo o botao nao e lido. As bobinas nao sao lidas depois do
-// gol, entao a festa (nem o som dela) nao atrapalha a leitura.
+// FESTA DE RECORDE: quando a tentativa termina com alcance MAIOR que o de todas as tentativas anteriores da MESMA sessao
+// (a sessao recomeca no "nova sessao", o aperto de 3 s), a fita mostra em BRANCO ate onde o recorde antigo tinha chegado e em
+// DOURADO o que foi superado, pulsando 3 vezes junto com 3 "plim" da nota da ultima bobina alcancada. A 1a tentativa da sessao
+// so define a base (nao ha o que superar). Recorde com gol: primeiro a festa do gol, depois a do recorde.
+// Cada festa dura de 1,5 a 2 s e trava o loop, como a repeticao das notas: nesse tempo o botao nao e lido. As bobinas nao sao
+// lidas depois do gol, entao a festa (nem o som dela) nao atrapalha a leitura.
 const int FESTA_QUADROS = 40;         // quadros do arco-iris correndo
 const int FESTA_QUADRO_MS = 30;       // duracao de cada quadro (40 x 30 ms = 1,2 s)
 const int FESTA_PISCADAS = 3;         // quantas vezes a fita inteira pisca
@@ -644,6 +648,16 @@ const int FESTA_ANTECIPA_MS = 150;                      // o modulo demora um po
 #else
   const int FESTA_SOM_INICIO_MS = 400;                  // a nota do gol (nota na hora) acabou de sair: deixa ela tocar antes do trinado
 #endif
+
+const bool FESTA_RECORDE_ATIVA = true;                  // false = sem festa de recorde (so a festa do gol)
+const int RECORDE_BRANCO_MS = 300;                      // o recorde antigo (branco) aparece sozinho por este tempo antes do 1o "plim"
+const int RECORDE_PLIMS = 5;                            // quantos "plim"
+const int RECORDE_PLIM_MS = 250;                        // intervalo entre um "plim" e o proximo. NAO baixe de 200: o modulo MP3 corta a nota anterior antes de ela tocar
+const int RECORDE_ACESO_MS = 150;                       // quanto tempo o dourado fica aceso em cada "plim" (menos o ultimo)
+const int RECORDE_SEGURA_MS = 700;                      // depois do ultimo "plim", quanto tempo o dourado fica aceso antes da fita voltar ao normal
+const bool RECORDE_MOSTRA_REC = true;                   // "rEC" no placar enquanto o dourado esta aceso
+const uint8_t RECORDE_BRANCO[3]  = {255, 255, 255};
+const uint8_t RECORDE_DOURADO[3] = {255, 190, 0};
 
 struct FestaSom { uint16_t quando; uint8_t faixa; };    // quando = ms depois do comeco da festa
 const int FESTA_SONS_MAX = 24;
@@ -736,6 +750,118 @@ void festaGol() {
     }
   }
   fita.show();
+}
+
+// ---- FESTA DE RECORDE ----
+int recordeSessao = 0;                                  // maior alcance (0 a 9; 9 = gol) entre as tentativas ja terminadas nesta sessao
+bool recordeTemBase = false;                            // so depois da 1a tentativa terminada ha o que superar
+uint16_t recordeSessaoNumero = 0;                       // numero da sessao (mesa.contador_sessao) a que o recorde pertence
+
+void festaGrupos(int* grupoDe) {                        // a que grupo (bobina) cada led pertence, como em acenderGrupo()
+  for (int g = 0; g < NUM_GRUPOS; g++)
+    for (int p = g * NUM_LEDS / NUM_GRUPOS; p < (g + 1) * NUM_LEDS / NUM_GRUPOS; p++) grupoDe[p] = g;
+}
+
+void mostrarRec() {                                     // " rEC" no placar (mesma sequencia de mostrarPontos())
+  const byte rec[4] = {0x00, 0x50, 0x79, 0x39};
+  inicioTM();
+  escreverTM(0x40);
+  fimTM();
+  inicioTM();
+  escreverTM(0xC0);
+  for (int i = 0; i < 4; i++) escreverTM(rec[i]);
+  fimTM();
+  inicioTM();
+  escreverTM(0x8F);
+  fimTM();
+}
+
+// Desenha a fita da festa de recorde: grupos 0..ateBranco-1 em branco (o recorde antigo) e, se dourado, os grupos
+// ateBranco..ateDourado-1 em dourado (o que foi superado). O resto apagado.
+void recordeFita(const int* grupoDe, int ateBranco, int ateDourado, bool dourado) {
+  for (int p = 0; p < NUM_LEDS; p++) {
+    int g = grupoDe[p];
+    if (g < ateBranco) {
+      fita.setPixelColor(p, fita.Color(RECORDE_BRANCO[0], RECORDE_BRANCO[1], RECORDE_BRANCO[2]));
+    } else if (dourado && g < ateDourado) {
+      fita.setPixelColor(p, fita.Color(RECORDE_DOURADO[0], RECORDE_DOURADO[1], RECORDE_DOURADO[2]));
+    } else {
+      fita.setPixelColor(p, 0);
+    }
+  }
+  fita.show();
+}
+
+// alcanceAntigo = recorde da sessao ate agora (0 a 8); alcanceNovo = o desta tentativa (1 a 9; 9 = gol).
+void festaRecorde(int alcanceAntigo, int alcanceNovo) {
+  int faixa = alcanceNovo + 1;                          // nota da ultima bobina alcancada (bobina k = faixa k+1; gol = faixa 10)
+  festaInicio = millis();
+  festaSonsN = 0;
+  festaSonsProx = 0;
+  if (FESTA_COM_SOM)
+    for (int k = 0; k < RECORDE_PLIMS; k++) {
+      int quando = RECORDE_BRANCO_MS + k * RECORDE_PLIM_MS - FESTA_ANTECIPA_MS;    // a nota sai um pouco ANTES do dourado acender
+      festaSomAdiciona(quando < 0 ? 0 : quando, faixa);
+    }
+
+  uint8_t brilhoNormal = fita.getBrightness();
+  fita.setBrightness(FESTA_BRILHO);
+  int grupoDe[NUM_LEDS];
+  festaGrupos(grupoDe);
+
+  recordeFita(grupoDe, alcanceAntigo, alcanceNovo, false);       // 1) o recorde antigo, em branco
+  festaEspera(RECORDE_BRANCO_MS);
+
+  for (int k = 0; k < RECORDE_PLIMS; k++) {                      // 2) o que foi superado, em dourado: "plim!"
+    recordeFita(grupoDe, alcanceAntigo, alcanceNovo, true);
+    if (RECORDE_MOSTRA_REC) mostrarRec();
+    if (k < RECORDE_PLIMS - 1) {
+      festaEspera(RECORDE_ACESO_MS);
+      recordeFita(grupoDe, alcanceAntigo, alcanceNovo, false);
+      if (RECORDE_MOSTRA_REC) mostrarPontos(pontos);
+      festaEspera(RECORDE_PLIM_MS - RECORDE_ACESO_MS);
+    } else {
+      festaEspera(RECORDE_SEGURA_MS);                            // o ultimo fica aceso
+    }
+  }
+
+  fita.setBrightness(brilhoNormal);                              // 3) a fita volta ao que estava: so os grupos das bobinas cruzadas
+  for (int p = 0; p < NUM_LEDS; p++) {
+    if (detectado[grupoDe[p]]) {
+      const uint8_t* c = cores[grupoDe[p]];
+      fita.setPixelColor(p, fita.Color(c[0], c[1], c[2]));
+    } else {
+      fita.setPixelColor(p, 0);
+    }
+  }
+  fita.show();
+  if (RECORDE_MOSTRA_REC) mostrarPontos(pontos);
+}
+
+// Chamada UMA vez, quando a tentativa termina (gol ou "parou"): festa do gol e, se superou o recorde da sessao, a do recorde.
+void festasDoFim() {
+  if (mesa.motivo_fim == MOT_GOL) festaGol();
+  if (!FESTA_RECORDE_ATIVA || bobinaMaisAlta < 0) return;        // nada cruzado: nao entra na conta
+  if (mesa.contador_sessao != recordeSessaoNumero) {             // sessao nova: o recorde recomeca
+    recordeSessaoNumero = mesa.contador_sessao;
+    recordeSessao = 0;
+    recordeTemBase = false;
+  }
+  int alcance = bobinaMaisAlta + 1;                              // 1 a 8 = bobina mais alta cruzada; 9 = gol
+  if (!recordeTemBase) {                                         // 1a tentativa da sessao: so define a base
+    recordeTemBase = true;
+    recordeSessao = alcance;
+    Serial.print("Recorde da sessao: base = alcance ");
+    Serial.println(alcance);
+  } else if (alcance > recordeSessao) {
+    Serial.print("RECORDE da sessao! alcance ");
+    Serial.print(recordeSessao);
+    Serial.print(" -> ");
+    Serial.println(alcance);
+    int antigo = recordeSessao;
+    recordeSessao = alcance;
+    festaRecorde(antigo, alcance);
+  }
 }
 
 // ===== REPRODUCAO DAS NOTAS =====
@@ -832,7 +958,7 @@ void testeRuido() {
   if (testeJanela && agora >= testeFimJanela) {
     Serial.print("TESTE DE RUIDO faixa ");
     Serial.print(testeFaixa);
-    Serial.println(" (valores das bobinas 1 a 9, LIMIAR 70):");
+    Serial.println(" (valores das bobinas 1 a 9, LIMIAR 10):");
     testeRuidoImprimir("   silencio antes:", picoSilencio);
     testeRuidoImprimir("   durante o som :", picoLido);
     for (int i = 0; i < 9; i++) picoLido[i] = 0;
@@ -1094,20 +1220,18 @@ void loop() {
     return;
   }
 
-  if (estado == M_FIM) {                                // [ESME] a tentativa acabou (uma vez so)
+  if (estado == M_FIM) {
     if (!notasTocadas) {
 #if NOTAS_NO_FIM
-      tocarNotasDetectadas();                           // rev 4: repete as notas das bobinas cruzadas
-      if (motivoFim == MOT_GOL) festaGol();             // [ESME] festa do gol, depois das notas
+      tocarNotasDetectadas();
+      festasDoFim();                                    // [ESME] festa do gol e do recorde, depois das notas
 #else
-      if (motivoFim == MOT_GOL) festaGol();             // [ESME] festa do gol
-      notasTocadas = true;                              // rev 5: em silencio (a nota de cada bobina tocou na hora do cruzamento)
+      festasDoFim();                                    // [ESME] festa do gol e do recorde
+      notasTocadas = true;
       Serial.println("Fim da tentativa");
       Serial.println("Pressione NOVA TENTATIVA");
 #endif
-    } else {
-      delay(1);
-    }
+    } else { delay(1); }
     return;
   }
 
